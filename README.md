@@ -1,3 +1,4 @@
 # transit_segmentation
- Transit First segmentation project
-A line I wrote on my local computer
+Transit First segmentation project
+
+Developed by Andrew simpson
