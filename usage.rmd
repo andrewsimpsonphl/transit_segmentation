@@ -2,7 +2,8 @@
 title: "Usage Information"
 author: "Andrew Simpson"
 date: "3/28/2020"
-output: html_document
+output: html_document:
+  keep_md: TRUE
 ---
 
 ```{r setup, include=FALSE}
