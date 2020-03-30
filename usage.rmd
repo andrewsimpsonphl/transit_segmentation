@@ -23,8 +23,3 @@ Running `pull_arcgis_dat()` will download the most recent shapefiles and assign 
 Key thing to know:
 links are from/to links taken from model 
 segments are coded and joined links that are the transit corridor
-
-``` {r load_data,  echo=FALSE}
-
-
-```
