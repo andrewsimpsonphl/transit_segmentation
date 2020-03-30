@@ -1,31 +1,39 @@
 ---
 title: "Usage Information"
 author: "Andrew Simpson"
-date: "3/28/2020"
-output: html_document:
-  keep_md: TRUE
+date: "03-30-20"
+output: html_document
+keep_md: TRUE
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+library(knitr) ; library(tidyverse)
+read_chunk("segmentation_code.R")
+
 ```
 
-## R Markdown
+## Pull Data from ARCGIS Online
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Running `pull_arcgis_dat()` will download the most recent shapefiles and assign `FINAL_ID` to each segment
+```{r pull_data, include=TRUE, echo=FALSE}
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+gis_dat <- pull_arcgis_dat()
 
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots
+## Load data onto segments
 
-You can also embed plots, for example:
+Key thing to know:
+links are from/to links taken from model 
+segments are coded and joined links that are the transit corridor
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+``` {r load_data,  echo=FALSE}
+segments_loaded <- load_segments(gis_dat)
+stops <- read_stops()
+
+ggplot() + 
+  geom_sf(data = segments_loaded, 
+          aes(colour = log(load))) + 
+  coord_sf()
+
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
