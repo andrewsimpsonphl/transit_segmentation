@@ -7,8 +7,7 @@ keep_md: TRUE
 ---
 
 ```{r setup, include=FALSE}
-library(knitr) ; library(tidyverse)
-read_chunk("segmentation_code.R")
+
 
 ```
 
@@ -16,8 +15,6 @@ read_chunk("segmentation_code.R")
 
 Running `pull_arcgis_dat()` will download the most recent shapefiles and assign `FINAL_ID` to each segment
 ```{r pull_data, include=TRUE, echo=FALSE}
-
-gis_dat <- pull_arcgis_dat()
 
 ```
 
@@ -28,12 +25,6 @@ links are from/to links taken from model
 segments are coded and joined links that are the transit corridor
 
 ``` {r load_data,  echo=FALSE}
-segments_loaded <- load_segments(gis_dat)
-stops <- read_stops()
 
-ggplot() + 
-  geom_sf(data = segments_loaded, 
-          aes(colour = log(load))) + 
-  coord_sf()
 
 ```
