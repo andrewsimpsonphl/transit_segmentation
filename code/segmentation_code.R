@@ -183,12 +183,11 @@ compile_apc_dat <- function(nested_data) {
     mutate(trip_dat = map(data[[1]], map, f)) %>% 
     unnest(cols = c(trip_dat)) %>%
     mutate(ridership = map_dbl(trip_dat, ~sum(.$ridership, na.rm = TRUE))) %>%
-    mutate(avg_speed = map(trip_dat, ~mean(.$avg_speed, na.rm = TRUE))) %>%
+    mutate(avg_speed = map(trip_dat, ~as.numeric(mean(.$avg_speed, na.rm = TRUE)))) %>%
     mutate(avg_speed_q10 = map(trip_dat, ~quant_num(.$avg_speed, 0.1))) %>%
     mutate(avg_speed_q50 = map(trip_dat, ~quant_num(.$avg_speed, 0.5))) %>%
     mutate(avg_speed_q90 = map(trip_dat, ~quant_num(.$avg_speed, 0.9))) %>%
     mutate(routes_list = map(trip_dat, ~unique(.$route))) %>%
-    mutate(routes_str = map(trip_dat, ~paste(unlist(unique(.$route)), collapse = ", "))) %>%
     mutate(avg_speed_sd = map(trip_dat, ~sd(as.numeric(unlist(.$avg_speed) , na.rm = TRUE), na.rm = TRUE)))
 
   return(final)
@@ -209,7 +208,13 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     group_by(FINAL_ID) %>%
     summarise(length = sum(Shape__Length))
   
+  fix_routes <- function(routes_list) {
+    routes_list %>% unlist() %>% paste(collapse = ", ")
+  }
+  
   output <- compiled_apc_dat %>% left_join(segments_geometry) %>% 
+    mutate_at(c("avg_speed", "avg_speed_q10", "avg_speed_q50", "avg_speed_q90"), as.numeric) %>%
+    mutate_at(c("routes_str"), fix_routes) %>%
     mutate(ridership = na_if(ridership, 0)) %>%
     mutate(riders_per_mile = ridership / length * 5280) %>%
     mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed)))
