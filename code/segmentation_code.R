@@ -175,13 +175,20 @@ compile_apc_dat <- function(nested_data) {
       select(-c(data)) # need to drop the data frame within each trip - makes everything huge!
   }
   
+  quant_num <- function(speed, level) {
+    as.numeric(unlist(quantile(speed, probs=c(level), na.rm = TRUE)))
+  }
+  
   final <- nested_data %>%
     mutate(trip_dat = map(data[[1]], map, f)) %>% 
     unnest(cols = c(trip_dat)) %>%
     mutate(ridership = map_dbl(trip_dat, ~sum(.$ridership, na.rm = TRUE))) %>%
     mutate(avg_speed = map(trip_dat, ~mean(.$avg_speed, na.rm = TRUE))) %>%
-    mutate(avg_speed_quantiles = map(trip_dat, ~quantile(.$avg_speed, probs=c(0.1, 0.25, 0.5, 0.75, 0.9, 1), na.rm = TRUE))) %>%
-    mutate(routes = map(trip_dat, ~list(unique(.$route)))) %>%
+    mutate(avg_speed_q10 = map(trip_dat, ~quant_num(.$avg_speed, 0.1))) %>%
+    mutate(avg_speed_q50 = map(trip_dat, ~quant_num(.$avg_speed, 0.5))) %>%
+    mutate(avg_speed_q90 = map(trip_dat, ~quant_num(.$avg_speed, 0.9))) %>%
+    mutate(routes_list = map(trip_dat, ~unique(.$route))) %>%
+    mutate(routes_str = map(trip_dat, ~paste(unlist(unique(.$route)), collapse = ", "))) %>%
     mutate(avg_speed_sd = map(trip_dat, ~sd(as.numeric(unlist(.$avg_speed) , na.rm = TRUE), na.rm = TRUE)))
 
   return(final)
@@ -195,40 +202,18 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
       group_by(FINAL_ID) %>%
       summarise(length = sum(Shape__Length))
     
-    return(segments_geometry)
+    #return(segments_geometry)
   }
   
-  segments_geometry <- find_segment_geometry(gis_dat)
+  segments_geometry <- gis_dat %>% 
+    group_by(FINAL_ID) %>%
+    summarise(length = sum(Shape__Length))
   
   output <- compiled_apc_dat %>% left_join(segments_geometry) %>% 
     mutate(ridership = na_if(ridership, 0)) %>%
     mutate(riders_per_mile = ridership / length * 5280) %>%
-    mutate(avg_speed_num = as.numeric(unlist(avg_speed))) %>%
-    mutate(avg_speed_cv = as.numeric(unlist(avg_speed_sd)) / as.numeric(unlist(avg_speed)))
+    mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed)))
   
   return(output)
 }
 
-#segments_with_apc_dat <- compile_apc_dat(nested_segments) %>% add_analytics()
-
-## @knitr final_run
-
-# step 1: create your stop file
-#stops <- read_stops()
-
-# step 2: pull in coded links from AGO 
-#gis_dat <- pull_arcgis_dat() 
-
-#nested_data <- gis_dat %>%
-  #load_coded_links(stops) %>%  # step 3.1: load coded links with stop_ids
-  #nest_segments(stops)         # step 3.2: nest the links into segments with FINAL_IDs
-  
-#FINAL_ID_LIST <- unique((as.numeric(nested_data$FINAL_ID)))
-
-# step 3.3: compile APC trip data to the segment level
-#segments_with_apc_dat <- nested_data %>% 
-  #filter(between(as.numeric(FINAL_ID), FINAL_ID_LIST[1], FINAL_ID_LIST[100])) %>%
-  #compile_apc_dat()  
-
-# step 4: run analytics on each segment
-#segments_with_apc_analytics <- segments_with_apc_dat %>% add_analytics(gis_dat) 
