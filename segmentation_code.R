@@ -228,7 +228,7 @@ FINAL_ID_LIST <- unique((as.numeric(nested_data$FINAL_ID)))
 
 # step 3.3: compile APC trip data to the segment level
 segments_with_apc_dat <- nested_data %>% 
-  filter(between(as.numeric(FINAL_ID), FINAL_ID_LIST[1], FINAL_ID_LIST[100])) %>%
+  #filter(between(as.numeric(FINAL_ID), FINAL_ID_LIST[1], FINAL_ID_LIST[100])) %>%
   compile_apc_dat()  
 
 # step 4: run analytics on each segment
