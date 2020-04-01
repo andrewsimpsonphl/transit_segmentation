@@ -18,10 +18,22 @@ nested_data <- gis_dat %>%
 FINAL_ID_LIST <- unique((as.numeric(nested_data$FINAL_ID)))
 
 # step 3.3: compile APC trip data to the segment level
-segments_with_apc_dat <- nested_data %>% 
-  filter(between(as.numeric(FINAL_ID), FINAL_ID_LIST[1], FINAL_ID_LIST[2])) %>%
+segments_with_apc_dat_1 <- nested_data %>% 
+  filter(between(as.numeric(FINAL_ID), FINAL_ID_LIST[1], FINAL_ID_LIST[100])) %>%
+  compile_apc_dat()
+
+segments_with_apc_dat_2 <- nested_data %>% 
+  filter(between(as.numeric(FINAL_ID), FINAL_ID_LIST[100], FINAL_ID_LIST[200])) %>%
+  compile_apc_dat()
+
+segments_with_apc_dat_3 <- nested_data %>% 
+  filter(between(as.numeric(FINAL_ID), FINAL_ID_LIST[200], FINAL_ID_LIST[283])) %>%
   compile_apc_dat()
 
 # step 4: run analytics on each segment
-segments_with_apc_analytics <- segments_with_apc_dat %>% add_analytics(gis_dat) 
+segments_with_apc_analytics <- 
+  segments_with_apc_dat_1 %>%
+  bind_rows(segments_with_apc_dat_2) %>% 
+  bind_rows(segments_with_apc_dat_3) %>% 
+  add_analytics(gis_dat) 
 
