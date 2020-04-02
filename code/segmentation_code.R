@@ -1,7 +1,8 @@
 # external scrips for usage.rmd
 
 library(tidyverse) ; library(httr) ; library(jsonlite) ; library(geojsonsf) ; library(lubridate)
-library(sf)  ;  library(leaflet)  ;  library(htmltools) ; library(knitr)  ; library(feather)
+library(sf)  ;  library(leaflet)  ;  library(htmltools) ; library(knitr)  ; library(feather)  
+library(dtplyr)  ;  library(tidyfast)
 
 ## @knitr pull_data
 
@@ -32,9 +33,6 @@ read_stops <- function() {
     rename(stop_id = StopId)
 }
 
-#segmentation_dat <- pull_arcgis_dat()
-#stops <- read_stops()
-
 ## @knitr load_data
 
 # filter out segments, join stop_id to each
@@ -47,22 +45,18 @@ load_coded_links <- function(segmentation_dat, stops) {
   return(loaded_segments)
 }
 
-
-
-#coded_links <- load_coded_links(segmentation_dat, stops)
-
 ## @knitr nest_segment_data
 
 # nests the link data for each segment
 # key is that it returns a list of stops along each segment
 nest_segments <- function(coded_links, stops) {
-  nested_dat <- coded_links %>%
+  nested_dat <- lazy_dt(coded_links) %>%
     left_join(stops %>% data.frame() %>% select(-geometry), by = c("fromto" = "combo")) %>%
     group_by(FINAL_ID) %>%
     summarise(stops = list(unique(stop_id.x))) %>%
-    data.frame() %>% select(-geometry) %>%
+    #data.frame() %>% select(-geometry) %>%
     group_by(FINAL_ID) %>%
-    nest()
+    dt_nest(FINAL_ID)
   
   return(nested_dat)
 }
@@ -142,6 +136,7 @@ compile_apc_dat <- function(nested_data) {
           ridership = max(entry_load) + sum(ons), 
           avg_speed = mean(velocity, na.rm = TRUE),
           avg_speed = na_if(avg_speed, Inf),
+          avg_load = mean(load, na.rm = TRUE),
           max_load = max(load)) 
       
       # factor and order Period to make sorting easier later on
@@ -164,31 +159,24 @@ compile_apc_dat <- function(nested_data) {
     
     nested_dat <- nest_trip_data_v2(filtered_dat, stop_list)
     
-    final_dat <- run_passenger_data_v2(nested_dat, stop_list) %>%  unnest(cols = c(calculated_pass))
+    final_dat <- run_passenger_data_v2(nested_dat, stop_list) %>% ungroup()  %>% 
+      unnest(cols = c(trip_id, calculated_pass), keep_empty = FALSE)
     
     return(final_dat)
   }
   
   # helper function for compile_apc_dat that helps call find_trip_dat_v2
-  f <- function(list) {
+  help_find_trip_dat <- function(list) {
     find_trip_dat_v2(apc_trip_data, list) %>%
-      select(-c(data)) # need to drop the data frame within each trip - makes everything huge!
+      select(-c(`data`)) # need to drop the data frame within each trip - makes everything huge!
   }
   
-  quant_num <- function(speed, level) {
-    as.numeric(unlist(quantile(speed, probs=c(level), na.rm = TRUE)))
-  }
-  
-  final <- nested_data %>%
-    mutate(trip_dat = map(data[[1]], map, f)) %>% 
-    unnest(cols = c(trip_dat)) %>%
-    mutate(ridership = map_dbl(trip_dat, ~sum(.$ridership, na.rm = TRUE))) %>%
-    mutate(avg_speed = map(trip_dat, ~as.numeric(mean(.$avg_speed, na.rm = TRUE)))) %>%
-    mutate(avg_speed_q10 = map(trip_dat, ~quant_num(.$avg_speed, 0.1))) %>%
-    mutate(avg_speed_q50 = map(trip_dat, ~quant_num(.$avg_speed, 0.5))) %>%
-    mutate(avg_speed_q90 = map(trip_dat, ~quant_num(.$avg_speed, 0.9))) %>%
-    mutate(routes_list = map(trip_dat, ~unique(.$route))) %>%
-    mutate(avg_speed_sd = map(trip_dat, ~sd(as.numeric(unlist(.$avg_speed) , na.rm = TRUE), na.rm = TRUE)))
+  final <- nested_data %>% 
+    unnest(FINAL_ID, data) %>%
+    filter(is.na(stops) != TRUE) %>% # filters out segments that do not have any stops assigned. 
+    lazy_dt() %>%
+    mutate(trip_dat = map(stops, help_find_trip_dat)) %>%
+    as.data.frame()
 
   return(final)
 }
@@ -208,17 +196,29 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     group_by(FINAL_ID) %>%
     summarise(length = sum(Shape__Length))
   
-  fix_routes <- function(routes_list) {
-    routes_list %>% unlist() %>% paste(collapse = ", ")
+  quant_num <- function(speed, level) {
+    as.numeric(unlist(quantile(speed, probs=c(level), na.rm = TRUE)))
   }
   
   output <- compiled_apc_dat %>% left_join(segments_geometry) %>% 
-    mutate_at(c("avg_speed", "avg_speed_q10", "avg_speed_q50", "avg_speed_q90", "avg_speed_sd"), as.numeric) %>%
-    mutate(routes_str = fix_routes(routes_list)) %>%
+    mutate(ridership = map_dbl(trip_dat, ~sum(.$ridership, na.rm = TRUE))) %>%
+    mutate(avg_speed = map(trip_dat, ~as.numeric(mean(.$avg_speed, na.rm = TRUE)))) %>%
+    mutate(avg_speed_q10 = map(trip_dat, ~quant_num(.$avg_speed, 0.1))) %>%
+    mutate(avg_speed_q50 = map(trip_dat, ~quant_num(.$avg_speed, 0.5))) %>%
+    mutate(avg_speed_q90 = map(trip_dat, ~quant_num(.$avg_speed, 0.9))) %>%
+    mutate(routes_list = map(trip_dat, ~unique(.$route))) %>%
+    mutate(trips = map(trip_dat, nrow)) %>%
+    mutate(avg_load = map(trip_dat, ~as.numeric(mean(.$avg_load, na.rm = FALSE)))) %>%
+    mutate(avg_load_q10 = map(trip_dat, ~quant_num(.$avg_load, 0.1))) %>%
+    mutate(avg_load_q50 = map(trip_dat, ~quant_num(.$avg_load, 0.5))) %>%
+    mutate(avg_load_q90 = map(trip_dat, ~quant_num(.$avg_load, 0.9))) %>%
+    mutate(avg_speed_sd = map(trip_dat, ~sd(as.numeric(unlist(.$avg_speed) , na.rm = TRUE), na.rm = TRUE))) %>%
     mutate(ridership = na_if(ridership, 0)) %>%
     mutate(riders_per_mile = ridership / length * 5280) %>%
+    #mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", "))) %>%
+    mutate_at(c("avg_speed", "avg_speed_q10", "avg_speed_q50", "avg_speed_q90", "avg_speed_sd",
+                  "avg_load", "avg_load_q50", "avg_load_q90", "avg_load_q10", "trips"), as.numeric) %>%
     mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed)))
-  
   return(output)
 }
 
