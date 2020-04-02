@@ -37,3 +37,7 @@ segments_with_apc_analytics <-
   bind_rows(segments_with_apc_dat_3) %>% 
   add_analytics(gis_dat) 
 
+# Step 5: (optional) export to geojson
+st_write(segments_with_apc_analytics, "./data/segments_analyzed.geojson", driver = "GeoJSON", update = TRUE)
+
+sf <- st_read("./data/segments_analyzed.geojson")

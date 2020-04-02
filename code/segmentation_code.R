@@ -213,8 +213,8 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
   }
   
   output <- compiled_apc_dat %>% left_join(segments_geometry) %>% 
-    mutate_at(c("avg_speed", "avg_speed_q10", "avg_speed_q50", "avg_speed_q90"), as.numeric) %>%
-    mutate_at(c("routes_str"), fix_routes) %>%
+    mutate_at(c("avg_speed", "avg_speed_q10", "avg_speed_q50", "avg_speed_q90", "avg_speed_sd"), as.numeric) %>%
+    mutate(routes_str = fix_routes(routes_list)) %>%
     mutate(ridership = na_if(ridership, 0)) %>%
     mutate(riders_per_mile = ridership / length * 5280) %>%
     mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed)))
