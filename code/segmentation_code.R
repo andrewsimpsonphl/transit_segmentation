@@ -144,8 +144,7 @@ compile_apc_dat <- function(nested_data) {
           avg_speed = mean(velocity, na.rm = TRUE),
           avg_speed = na_if(avg_speed, Inf),
           avg_load = mean(load, na.rm = TRUE),
-          max_load = max(load)) %>%
-        as.data.frame()
+          max_load = max(load))
       
       # factor and order Period to make sorting easier later on
       #output$period <- factor(output$period, levels = c("Early AM", "AM Peak", "Midday", "PM Peak", "Evening", "Late Night"))
@@ -157,7 +156,7 @@ compile_apc_dat <- function(nested_data) {
     run_passenger_data_v2 <- function(dat, stop_list = c(20644, 18447, 18448, 10275, 10272, 18451, 10266)) {
       
       output <- dat %>%
-        lazy_dt() %>%
+        lazy_dt(immutable = FALSE) %>%
         mutate(calculated_pass = map(data, calc_pass_v2, list = stop_list)) %>%
         as.data.frame()
       
