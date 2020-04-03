@@ -81,16 +81,6 @@ compile_apc_dat <- function(nested_data) {
   # function that returns a dataframe of APC trip data for a list of stops
   find_trip_dat_v2 <- function(apc_trip_data, stop_list = c(20644, 18447, 18448, 10275, 10272, 18451, 10266)) {
     
-    nest_trip_data_v2 <- function(filtered_dat, a = 6066, b = 6115) {
-      y <- filtered_dat %>%   
-        arrange(trip_id, stop_seq) %>%
-        group_by(trip_id) %>%
-        nest() # build a nested data frame of individual trips
-      
-      return(y)
-    }
-    #test <- nest_trip_data_v2(filter_trip_list(apc_trip_data))
-    
     # pull all trips that stop at a stop in a list
     # returns an unested data fram of all trips that stop at one of the given stops
     filter_trip_list <- function(dat, list = c( 20644, 18447, 18448, 10275, 10272, 18451)){
@@ -103,8 +93,21 @@ compile_apc_dat <- function(nested_data) {
         # filter if trip # is on A list or B list
         filter(`trip_id` %in% list_a) 
       
-      return(x)
+      return((x))
     }
+    
+    nest_trip_data_v2 <- function(filtered_dat) {
+      y <- filtered_dat %>%
+        lazy_dt() %>%
+        arrange(trip_id, stop_seq) %>%
+        group_by(trip_id) %>%
+        dt_nest(trip_id) # build a nested data frame of individual trips
+      
+      return(y)
+    }
+    #test <- nest_trip_data_v2(filter_trip_list(apc_trip_data))
+    
+    
     
     calc_pass_v2 <- function(df, list = c(20644, 18447, 18448, 10275, 10272, 18451, 10266)) {
       
@@ -124,7 +127,9 @@ compile_apc_dat <- function(nested_data) {
       
       #calc. run times and passenger activity for each trip
       output <- y %>%
+        #lazy_dt() %>%
         mutate(entry_load = first(load)) %>%
+        #mutate(ridership = max(entry_load) + sum(ons)) %>%
         summarise(
           run = as.duration(last(hms(time_stamp)) - first(hms(time_stamp))),
           trip_begin = (first((time_stamp))),
@@ -132,13 +137,15 @@ compile_apc_dat <- function(nested_data) {
           route = paste(unique(route_id), collapse = ", "),
           direction = paste(unique(direction_id), collapse = ", "),
           source = paste(unique(source), collapse = ", "),
-          ons = sum(ons),
-          ons_offs = sum(ons) + sum(offs), 
-          ridership = max(entry_load) + sum(ons), 
+          ons_total = sum(ons),
+          offs_total = sum(offs),
+          ons_offs = ons_total + offs_total, 
+          ridership = max(entry_load) + ons_total, 
           avg_speed = mean(velocity, na.rm = TRUE),
           avg_speed = na_if(avg_speed, Inf),
           avg_load = mean(load, na.rm = TRUE),
-          max_load = max(load)) 
+          max_load = max(load)) %>%
+        as.data.frame()
       
       # factor and order Period to make sorting easier later on
       #output$period <- factor(output$period, levels = c("Early AM", "AM Peak", "Midday", "PM Peak", "Evening", "Late Night"))
@@ -150,7 +157,9 @@ compile_apc_dat <- function(nested_data) {
     run_passenger_data_v2 <- function(dat, stop_list = c(20644, 18447, 18448, 10275, 10272, 18451, 10266)) {
       
       output <- dat %>%
-        mutate(calculated_pass = map(data, calc_pass_v2, list = stop_list))
+        lazy_dt() %>%
+        mutate(calculated_pass = map(data, calc_pass_v2, list = stop_list)) %>%
+        as.data.frame()
       
       return(output)
     }
@@ -158,18 +167,17 @@ compile_apc_dat <- function(nested_data) {
     
     filtered_dat <- filter_trip_list(apc_trip_data, stop_list)
     
-    nested_dat <- nest_trip_data_v2(filtered_dat, stop_list)
+    nested_dat <- nest_trip_data_v2(filtered_dat)
     
-    final_dat <- run_passenger_data_v2(nested_dat, stop_list) %>% ungroup()  %>% 
-      unnest(cols = c(trip_id, calculated_pass), keep_empty = FALSE)
+    final_dat <- run_passenger_data_v2(nested_dat, stop_list) %>% ungroup()  %>% lazy_dt() %>%
+      dt_unnest(calculated_pass)
     
     return(final_dat)
   }
   
   # helper function for compile_apc_dat that helps call find_trip_dat_v2
   help_find_trip_dat <- function(list) {
-    find_trip_dat_v2(apc_trip_data, list) %>%
-      select(-c(`data`)) # need to drop the data frame within each trip - makes everything huge!
+    find_trip_dat_v2(apc_trip_data, list)
   }
   
   final <- nested_data %>% 
