@@ -80,6 +80,7 @@ compile_apc_dat <- function(nested_data) {
   
   # function that returns a dataframe of APC trip data for a list of stops
   find_trip_dat_v2 <- function(apc_trip_data, stop_list = c(20644, 18447, 18448, 10275, 10272, 18451, 10266)) {
+    
     nest_trip_data_v2 <- function(filtered_dat, a = 6066, b = 6115) {
       y <- filtered_dat %>%   
         arrange(trip_id, stop_seq) %>%
