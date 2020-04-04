@@ -1,9 +1,5 @@
 # external scrips for usage.rmd
 
-library(tidyverse) ; library(httr) ; library(jsonlite) ; library(geojsonsf) ; library(lubridate)
-library(sf)  ;  library(leaflet)  ;  library(htmltools) ; library(knitr)  ; library(feather)  
-library(dtplyr)  ;  library(tidyfast)
-
 ## @knitr pull_data
 
 pull_arcgis_dat <- function() {

@@ -1,7 +1,13 @@
 library(tidyverse) ; library(httr) ; library(jsonlite) ; library(geojsonsf) ; library(lubridate)
-library(sf)  ;  library(leaflet)  ;  library(htmltools) ; library(knitr)  ; library(feather)
+library(sf)  ;  library(htmltools) ; library(knitr)  ; library(feather)  ;  
+library(dtplyr)  ;  library(tidyfast)
 
 source("code/segmentation_code.R")
+
+library(googledrive)
+drive_auth(use_oob = TRUE)
+
+drive_download("preped_apc_data.feather", path = "./data/preped_apc_data.feather", overwrite = TRUE)
 
 # step 1: create your stop file
 stops <- read_stops()
@@ -19,32 +25,12 @@ FINAL_ID_LIST <- unique((as.numeric(nested_data$FINAL_ID)))
 
 # step 3.3: compile APC trip data to the segment level
 segments_with_apc_dat <- nested_data %>% 
-  filter(between(as.numeric(FINAL_ID), as.numeric(first(FINAL_ID_LIST)), as.numeric(FINAL_ID_LIST[75]))) %>%
+  filter(between(as.numeric(FINAL_ID), as.numeric(first(FINAL_ID_LIST)), as.numeric(FINAL_ID_LIST[347]))) %>%
   compile_apc_dat()
 
-segments_with_apc_dat_2 <- nested_data %>% 
-  filter(between(as.numeric(FINAL_ID), as.numeric(FINAL_ID_LIST[75]), as.numeric(FINAL_ID_LIST[150]))) %>%
-  compile_apc_dat()
-
-segments_with_apc_dat_3 <- nested_data %>% 
-  filter(between(as.numeric(FINAL_ID), as.numeric(FINAL_ID_LIST[150]), as.numeric(FINAL_ID_LIST[225]))) %>%
-  compile_apc_dat()
-
-segments_with_apc_dat_4 <- nested_data %>% 
-  filter(between(as.numeric(FINAL_ID), as.numeric(FINAL_ID_LIST[225]), as.numeric(FINAL_ID_LIST[290]))) %>%
-  compile_apc_dat()
-
-segments_with_apc_dat_5 <- nested_data %>% 
-  filter(between(as.numeric(FINAL_ID), as.numeric(FINAL_ID_LIST[290]), as.numeric(last(FINAL_ID_LIST)))) %>%
-  compile_apc_dat()
 
 # step 4: run analytics on each segment
 segments_with_apc_analytics <- segments_with_apc_dat %>%
-  bind_rows(segments_with_apc_dat_2) %>%
-  bind_rows(segments_with_apc_dat_3) %>%
-  bind_rows(segments_with_apc_dat_4) %>%
-  bind_rows(segments_with_apc_dat_5) %>%
-  distinct(FINAL_ID, .keep_all = TRUE) %>%
   add_analytics(gis_dat)
 
 # Step 5: (optional) export to geojson
