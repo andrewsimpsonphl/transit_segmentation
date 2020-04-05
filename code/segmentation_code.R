@@ -168,6 +168,7 @@ compile_apc_dat <- function(nested_data) {
       dt_unnest(calculated_pass)
     
     return(final_dat)
+    gc()
   }
   
   # helper function for compile_apc_dat that helps call find_trip_dat_v2
@@ -182,6 +183,7 @@ compile_apc_dat <- function(nested_data) {
     mutate(trip_dat = map(stops, help_find_trip_dat)) %>%
     as.data.frame()
 
+  gc()
   return(final)
 }
 
@@ -219,10 +221,11 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     mutate(avg_speed_sd = map(trip_dat, ~sd(as.numeric(unlist(.$avg_speed) , na.rm = TRUE), na.rm = TRUE))) %>%
     mutate(ridership = na_if(ridership, 0)) %>%
     mutate(riders_per_mile = ridership / length * 5280) %>%
-    #mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", "))) %>%
     mutate_at(c("avg_speed", "avg_speed_q10", "avg_speed_q50", "avg_speed_q90", "avg_speed_sd",
                   "avg_load", "avg_load_q50", "avg_load_q90", "avg_load_q10", "trips"), as.numeric) %>%
-    mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed)))
+    mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed))) %>%
+    rowwise() %>%
+    mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", ")))
   return(output)
 }
 
