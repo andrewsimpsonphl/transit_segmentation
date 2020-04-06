@@ -89,6 +89,7 @@ compile_apc_dat <- function(nested_data) {
         # filter if trip # is on A list or B list
         filter(`trip_id` %in% list_a) 
       
+      #print("Filtering")
       return((x))
     }
     
@@ -99,13 +100,13 @@ compile_apc_dat <- function(nested_data) {
         group_by(trip_id) %>%
         dt_nest(trip_id) # build a nested data frame of individual trips
       
+      #print("Nesting")
       return(y)
     }
     #test <- nest_trip_data_v2(filter_trip_list(apc_trip_data))
     
-    
-    
     calc_pass_v2 <- function(df, list = c(20644, 18447, 18448, 10275, 10272, 18451, 10266)) {
+      #print(paste("Running calc pass on trip:", df$trip_id, sep = " "))
       
       # arrange by stop sequence and then slice
       x <- df %>% 
@@ -123,7 +124,7 @@ compile_apc_dat <- function(nested_data) {
       
       #calc. run times and passenger activity for each trip
       output <- y %>%
-        #lazy_dt() %>%
+        lazy_dt(immutable = TRUE) %>%
         mutate(entry_load = first(load)) %>%
         #mutate(ridership = max(entry_load) + sum(ons)) %>%
         summarise(
@@ -135,23 +136,24 @@ compile_apc_dat <- function(nested_data) {
           source = paste(unique(source), collapse = ", "),
           ons_total = sum(ons),
           offs_total = sum(offs),
-          ons_offs = ons_total + offs_total, 
-          ridership = max(entry_load) + ons_total, 
+          #ons_offs = ons_total + offs_total, 
+          #ridership = max(entry_load) + ons_total, 
+          max_entry_load = max(entry_load), 
           avg_speed = mean(velocity, na.rm = TRUE),
-          avg_speed = na_if(avg_speed, Inf),
+          #avg_speed = na_if(avg_speed, Inf),
           avg_load = mean(load, na.rm = TRUE),
-          max_load = max(load))
-      
-      # factor and order Period to make sorting easier later on
-      #output$period <- factor(output$period, levels = c("Early AM", "AM Peak", "Midday", "PM Peak", "Evening", "Late Night"))
+          max_load = max(load)) %>%
+        as.data.frame() %>%
+        mutate(ons_offs = ons_total + offs_total) %>%
+        mutate(ridership = max_entry_load + ons_total) %>%
+        mutate(avg_speed = na_if(avg_speed, Inf))
       
       return(output)  
     }
     
     # run calc_pass() on each nested set of data to calculate ridership (load + boards on segment) 
-    run_passenger_data_v2 <- function(dat, stop_list = c(20644, 18447, 18448, 10275, 10272, 18451, 10266)) {
-      
-      output <- dat %>%
+    run_passenger_data_v2 <- function(nested_trip_dat, stop_list = c(20644, 18447, 18448, 10275, 10272, 18451, 10266)) {
+      output <- nested_trip_dat %>%
         lazy_dt(immutable = FALSE) %>%
         mutate(calculated_pass = map(data, calc_pass_v2, list = stop_list)) %>%
         as.data.frame()
@@ -159,12 +161,12 @@ compile_apc_dat <- function(nested_data) {
       return(output)
     }
     
-    
     filtered_dat <- filter_trip_list(apc_trip_data, stop_list)
-    
-    nested_dat <- nest_trip_data_v2(filtered_dat)
-    
-    final_dat <- run_passenger_data_v2(nested_dat, stop_list) %>% ungroup()  %>% lazy_dt() %>%
+    nested_trip_dat <- nest_trip_data_v2(filtered_dat)
+    print(paste("Running passenger data for", count(nested_trip_dat %>% as_tibble()), "trips", sep = " "))
+    final_dat <- run_passenger_data_v2(nested_trip_dat, stop_list) %>% 
+      ungroup()  %>% 
+      lazy_dt() %>%
       dt_unnest(calculated_pass)
     
     return(final_dat)
@@ -174,6 +176,8 @@ compile_apc_dat <- function(nested_data) {
   # helper function for compile_apc_dat that helps call find_trip_dat_v2
   help_find_trip_dat <- function(list) {
     find_trip_dat_v2(apc_trip_data, list)
+    #print(paste("Analyzing trip", .$FINAL_ID))
+    #mem_used()
   }
   
   final <- nested_data %>% 
@@ -226,6 +230,6 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed))) %>%
     rowwise() %>%
     mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", ")))
-  return(output)
-}
+  return(output) 
+} 
 
