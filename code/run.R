@@ -6,8 +6,7 @@ source("code/segmentation_code.R")
 
 library(googledrive)
 #drive_auth(use_oob = TRUE)
-
-drive_download("preped_apc_data.feather", path = "./data/preped_apc_data.feather", overwrite = TRUE)
+#drive_download("preped_apc_data.feather", path = "./data/preped_apc_data.feather", overwrite = TRUE)
 
 # step 1: create your stop file
 stops <- read_stops()
