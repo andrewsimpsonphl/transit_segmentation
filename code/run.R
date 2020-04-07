@@ -36,7 +36,7 @@ segments_with_apc_dat_2 <- nested_data %>%
 segments_with_apc_analytics <- segments_with_apc_dat_1 %>%
   bind_rows(segments_with_apc_dat_2) %>%
   add_analytics(gis_dat) %>%
-  distinct(FINAL_ID)
+  distinct(FINAL_ID, .keep_all = TRUE)
 
 # Step 5: (optional) export to geojson
 st_write(segments_with_apc_analytics, "./data/segments_analyzed.geojson", driver = "GeoJSON", delete_dsn = TRUE)

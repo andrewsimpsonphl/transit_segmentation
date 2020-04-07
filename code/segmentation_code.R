@@ -204,8 +204,9 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
   
   segments_geometry <- gis_dat %>% 
     group_by(FINAL_ID) %>%
-    summarise(length = sum(Shape__Length))
-  
+    summarise() %>%
+    mutate(length = st_length(geometry))
+
   quant_num <- function(speed, level) {
     as.numeric(unlist(quantile(speed, probs=c(level), na.rm = TRUE)))
   }
@@ -224,12 +225,14 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     mutate(avg_load_q90 = map(trip_dat, ~quant_num(.$avg_load, 0.9))) %>%
     mutate(avg_speed_sd = map(trip_dat, ~sd(as.numeric(unlist(.$avg_speed) , na.rm = TRUE), na.rm = TRUE))) %>%
     mutate(ridership = na_if(ridership, 0)) %>%
-    mutate(riders_per_mile = ridership / length * 5280) %>%
+    mutate(riders_per_m = ridership / length) %>%
+    mutate(riders_per_km = ridership / (length / 1000)) %>%
     mutate_at(c("avg_speed", "avg_speed_q10", "avg_speed_q50", "avg_speed_q90", "avg_speed_sd",
                   "avg_load", "avg_load_q50", "avg_load_q90", "avg_load_q10", "trips"), as.numeric) %>%
     mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed))) %>%
     rowwise() %>%
-    mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", ")))
+    mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", "))) %>%
+    mutate(stops_str = (stops %>% unlist() %>% paste(collapse = ", ")))
   return(output) 
-} 
+}
 
