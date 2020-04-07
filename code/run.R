@@ -24,18 +24,23 @@ FINAL_ID_LIST <- unique((as.numeric(nested_data$FINAL_ID)))
 
 # step 3.3: compile APC trip data to the segment level
 segments_with_apc_dat_1 <- nested_data %>% 
-  filter(between(as.numeric(FINAL_ID), as.numeric(first(FINAL_ID_LIST)), as.numeric(FINAL_ID_LIST[200]))) %>%
+  filter(between(as.numeric(FINAL_ID), as.numeric(first(FINAL_ID_LIST)), as.numeric(FINAL_ID_LIST[20]))) %>%
   compile_apc_dat()
 
 segments_with_apc_dat_2 <- nested_data %>% 
   filter(between(as.numeric(FINAL_ID), as.numeric(FINAL_ID_LIST[200]), as.numeric(FINAL_ID_LIST[348]))) %>%
   compile_apc_dat()
 
+list <- c(1 : length(FINAL_ID_LIST))
+final_segments <- data.frame()
+for(val in list) {
+  x <- nested_data[val] %>% compile_apc_dat()
+  final_segments <- rbind(final_segments, x)
+}
+
 # step 4: run analytics on each segment
-segments_with_apc_analytics <- segments_with_apc_dat_1 %>%
-  bind_rows(segments_with_apc_dat_2) %>%
-  add_analytics(gis_dat) %>%
-  distinct(FINAL_ID, .keep_all = TRUE)
+segments_with_apc_analytics <- final_segments %>%
+  add_analytics(gis_dat)
 
 # Step 5: (optional) export to geojson
 st_write(segments_with_apc_analytics, "./data/segments_analyzed.geojson", driver = "GeoJSON", delete_dsn = TRUE)
