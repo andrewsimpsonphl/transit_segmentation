@@ -20,7 +20,7 @@ segments <- gis_dat %>%
 
 final_segments <- segments %>%
   mutate(fromto = toString(new_fromto)) %>%
-  select(-linknumber, -new_fromto, -to, -from, -tofrom) %>%
+  select(-linknumber, -new_fromto, -to, -from, -tofrom, -FID, -FID_, -round, -times_used, -CreationDate, -Creator, -EditDate, -Editor) %>%
   left_join(links_df, by = c("fromto" = "combo"))
 
 st_write(final_segments, "./data/corrected_segments.geojson", driver = "GeoJSON", delete_dsn = TRUE)
