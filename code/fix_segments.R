@@ -25,3 +25,4 @@ final_segments <- segments %>%
 
 st_write(final_segments, "./data/corrected_segments.geojson", driver = "GeoJSON", delete_dsn = TRUE)
 
+st_write(final_segments, "./data/corrected_segments/corrected_segments.shp", delete_dsn = TRUE)
