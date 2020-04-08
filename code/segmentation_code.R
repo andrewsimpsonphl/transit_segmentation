@@ -232,7 +232,8 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed))) %>%
     rowwise() %>%
     mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", "))) %>%
-    mutate(stops_str = (stops %>% unlist() %>% paste(collapse = ", ")))
+    mutate(stops_str = (stops %>% unlist() %>% paste(collapse = ", "))) %>%
+    mutate(riders_per_trip_km = ridership / (trips * length / 1000))
   return(output) 
 }
 
