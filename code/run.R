@@ -28,7 +28,7 @@ for(val in list) {
   x <- compile_apc_dat(nested_data[val])
   final_segments <- rbind(final_segments, x)
   mem_used() %>% paste("currently used memory", sep = " ")  %>% print()
-  paste(val, "of", length(list), "segments complete - ", val/length(list)*100, "%", sep = " ") %>% print()
+  paste(val, "of", length(list), "segments complete - ", round(val/length(list)*100, 2), "%", sep = " ") %>% print()
 }
 
 # step 4: run analytics on each segment
