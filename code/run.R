@@ -1,6 +1,6 @@
 library(tidyverse) ; library(httr) ; library(jsonlite) ; library(geojsonsf) ; library(lubridate)
 library(sf)  ;  library(htmltools) ; library(knitr)  ; library(feather)  ;  
-library(dtplyr)  ;  library(tidyfast)
+library(dtplyr)  ;  library(tidyfast)  ;  library(pryr)
 
 source("code/segmentation_code.R")
 
@@ -12,30 +12,23 @@ library(googledrive)
 stops <- read_stops()
 
 # step 2: pull in coded links from AGO 
-gis_dat <- pull_arcgis_dat() 
+gis_dat <- pull_arcgis_dat()
 
 # Step 3: run links through coding, nesting into segments, and then assign APC data to them
-
 nested_data <- gis_dat %>%
   load_coded_links(stops) %>%  # step 3.1: load coded links with stop_ids
   nest_segments(stops)         # step 3.2: nest the links into segments with FINAL_IDs
 
-FINAL_ID_LIST <- unique((as.numeric(nested_data$FINAL_ID)))
-
 # step 3.3: compile APC trip data to the segment level
-segments_with_apc_dat_1 <- nested_data %>% 
-  filter(between(as.numeric(FINAL_ID), as.numeric(first(FINAL_ID_LIST)), as.numeric(FINAL_ID_LIST[20]))) %>%
-  compile_apc_dat()
-
-segments_with_apc_dat_2 <- nested_data %>% 
-  filter(between(as.numeric(FINAL_ID), as.numeric(FINAL_ID_LIST[200]), as.numeric(FINAL_ID_LIST[348]))) %>%
-  compile_apc_dat()
-
+FINAL_ID_LIST <- unique((as.numeric(nested_data$FINAL_ID)))
 list <- c(1 : length(FINAL_ID_LIST))
 final_segments <- data.frame()
 for(val in list) {
-  x <- nested_data[val] %>% compile_apc_dat()
+  print(paste("Running segment number:", FINAL_ID_LIST[val], sep = " "))
+  x <- compile_apc_dat(nested_data[val])
   final_segments <- rbind(final_segments, x)
+  mem_used() %>% paste("currently used memory", sep = " ")  %>% print()
+  paste(val, "of", length(list), "segments complete - ", val/length(list)*100, "%", sep = " ") %>% print()
 }
 
 # step 4: run analytics on each segment
