@@ -1,5 +1,5 @@
 library(tidyverse) ; library(httr) ; library(jsonlite) ; library(geojsonsf) ; library(lubridate)
-library(sf)  ;  library(htmltools) ; library(knitr)  ; library(feather)  ;  
+library(sf)  ;  library(htmltools) ; library(knitr)  ; library(feather)  ;  library(dplyr)
 library(dtplyr)  ;  library(tidyfast)  ;  library(pryr)
 
 source("code/segmentation_code.R")
@@ -27,7 +27,7 @@ for(val in list) {
   print(paste("Running segment number:", FINAL_ID_LIST[val], sep = " "))
   x <- compile_apc_dat(nested_data[val])
   final_segments <- rbind(final_segments, x)
-  mem_used() %>% paste("currently used memory", sep = " ")  %>% print()
+  mem_used() #%>% paste("currently used memory", sep = " ")  %>% print()
   paste(val, "of", length(list), "segments complete - ", round(val/length(list)*100, 2), "%", sep = " ") %>% print()
 }
 
