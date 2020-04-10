@@ -167,7 +167,8 @@ compile_apc_dat <- function(nested_data) {
     final_dat <- run_passenger_data_v2(nested_trip_dat, stop_list) %>% 
       ungroup()  %>% 
       lazy_dt() %>%
-      dt_unnest(calculated_pass)
+      dt_unnest(calculated_pass) %>%
+      filter(run > as.duration(0)) # filter out trips that only make 1 stop on the corridor
     
     return(final_dat)
     gc()
@@ -186,7 +187,7 @@ compile_apc_dat <- function(nested_data) {
     lazy_dt() %>%
     mutate(trip_dat = map(stops, help_find_trip_dat)) %>%
     as.data.frame()
-
+  
   gc()
   return(final)
 }
@@ -206,7 +207,7 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     group_by(FINAL_ID) %>%
     summarise() %>%
     mutate(length = st_length(geometry))
-
+  
   quant_num <- function(speed, level) {
     as.numeric(unlist(quantile(speed, probs=c(level), na.rm = TRUE)))
   }
@@ -228,7 +229,7 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     mutate(riders_per_m = ridership / length) %>%
     mutate(riders_per_km = ridership / (length / 1000)) %>%
     mutate_at(c("avg_speed", "avg_speed_q10", "avg_speed_q50", "avg_speed_q90", "avg_speed_sd",
-                  "avg_load", "avg_load_q50", "avg_load_q90", "avg_load_q10", "trips"), as.numeric) %>%
+                "avg_load", "avg_load_q50", "avg_load_q90", "avg_load_q10", "trips"), as.numeric) %>%
     mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed))) %>%
     rowwise() %>%
     mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", "))) %>%
