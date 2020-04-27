@@ -196,15 +196,6 @@ compile_apc_dat <- function(nested_data) {
 
 add_analytics <- function(compiled_apc_dat, gis_dat) {
   
-  # return that geometry and length of each segment
-  find_segment_geometry <- function(gis_dat) {
-    segments_geometry <- gis_dat %>% 
-      group_by(FINAL_ID) %>%
-      summarise(length = sum(Shape__Length))
-    
-    #return(segments_geometry)
-  }
-  
   segments_geometry <- gis_dat %>% 
     group_by(FINAL_ID) %>%
     summarise() %>%

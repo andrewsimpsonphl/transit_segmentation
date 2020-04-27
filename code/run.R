@@ -22,6 +22,7 @@ nested_data <- gis_dat %>%
 # step 3.3: compile APC trip data to the segment level
 FINAL_ID_LIST <- unique((as.numeric(nested_data$FINAL_ID)))
 list <- c(1 : length(FINAL_ID_LIST))
+#list <- c(1 : 2)
 final_segments <- data.frame()
 for(val in list) {
   print(paste("Running segment number:", FINAL_ID_LIST[val], sep = " "))
@@ -31,11 +32,21 @@ for(val in list) {
   paste(val, "of", length(list), "segments complete - ", round(val/length(list)*100, 2), "%", sep = " ") %>% print()
 }
 
+segments_with_apc_route_analytics <- final_segments %>% unnest(cols = c(trip_dat)) %>%
+  group_by(FINAL_ID, route) %>%
+  summarise(daily_ridership = sum(ridership), 
+            avg_route_speed = mean(avg_speed, na.rm = TRUE),
+            avg_speed_q50 = quant_num(avg_speed, 0.5),
+            avg_speed_q10 = quant_num(avg_speed, 0.1), 
+            avg_speed_q90 = quant_num(avg_speed, 0.9), 
+            trips = n())
+
 # step 4: run analytics on each segment
 segments_with_apc_analytics <- final_segments %>%
   add_analytics(gis_dat)
 
 # Step 5: (optional) export to geojson
 st_write(segments_with_apc_analytics, "./data/segments_analyzed.geojson", driver = "GeoJSON", delete_dsn = TRUE)
+st_write(segments_with_apc_route_analytics, "./data/segments_routes_analyzed.geojson", driver = "GeoJSON", delete_dsn = TRUE)
 
 
