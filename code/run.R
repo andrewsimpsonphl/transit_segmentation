@@ -32,18 +32,11 @@ for(val in list) {
   paste(val, "of", length(list), "segments complete - ", round(val/length(list)*100, 2), "%", sep = " ") %>% print()
 }
 
-segments_with_apc_route_analytics <- final_segments %>% unnest(cols = c(trip_dat)) %>%
-  group_by(FINAL_ID, route) %>%
-  summarise(daily_ridership = sum(ridership), 
-            avg_route_speed = mean(avg_speed, na.rm = TRUE),
-            avg_speed_q50 = quant_num(avg_speed, 0.5),
-            avg_speed_q10 = quant_num(avg_speed, 0.1), 
-            avg_speed_q90 = quant_num(avg_speed, 0.9), 
-            trips = n())
-
 # step 4: run analytics on each segment
 segments_with_apc_analytics <- final_segments %>%
   add_analytics(gis_dat)
+segments_with_apc_route_analytics <- final_segments %>%
+  add_route_analytics(gis_dat)
 
 # Step 5: (optional) export to geojson
 st_write(segments_with_apc_analytics, "./data/segments_analyzed.geojson", driver = "GeoJSON", delete_dsn = TRUE)

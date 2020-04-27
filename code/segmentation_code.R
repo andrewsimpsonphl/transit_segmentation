@@ -231,3 +231,27 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
   return(output) 
 }
 
+add_route_analytics <- function(compiled_apc_dat, gis_dat) {
+  
+  segments_geometry <- gis_dat %>% 
+    group_by(FINAL_ID) %>%
+    summarise() %>%
+    mutate(length = st_length(geometry))
+  
+  quant_num <- function(speed, level) {
+    as.numeric(unlist(quantile(speed, probs=c(level), na.rm = TRUE)))
+  }
+  
+  segments_with_apc_route_analytics <- compiled_apc_dat %>% unnest(cols = c(trip_dat)) %>%
+    group_by(FINAL_ID, route) %>%
+    summarise(daily_ridership = sum(ridership), 
+              avg_route_speed = mean(avg_speed, na.rm = TRUE),
+              avg_speed_q50 = quant_num(avg_speed, 0.5),
+              avg_speed_q10 = quant_num(avg_speed, 0.1), 
+              avg_speed_q90 = quant_num(avg_speed, 0.9), 
+              trips = n()) %>% 
+    left_join(segments_geometry)
+  
+  return(segments_with_apc_route_analytics) 
+}
+
