@@ -194,6 +194,42 @@ compile_apc_dat <- function(nested_data) {
   return(final)
 }
 
+fix_routes <- function(route_list){
+  
+  char_vect <- c(`331` = "33S", 
+    `101` = "10B", 
+    `471` = "47M", 
+    `701` = "BSO", 
+    `702` = "C", 
+    `703` = "G",
+    `704` = "HRS", 
+    `705` = "HXH", 
+    `706` = "J",
+    `707` = "K",
+    `708` = "KLS", 
+    `709` = "KSL",
+    `710` = "L", 
+    `711` = "MFO",
+    `712` = "R",
+    `713` = "13B",
+    `714` = "WCS",
+    `715` = "WPA",
+    `716` = "WPS",
+    `734` = "34B",
+    `801` = "H",
+    `802` = "XH",
+    `500` = "BLVDDIR")
+  
+  output <- recode(route_list, !!!char_vect)
+  
+  #output <- list_modify(route_list, `500` = "BLVDDIR")
+  
+  return(output)
+}
+
+fix_routes(c("500"))
+
+
 add_analytics <- function(compiled_apc_dat, gis_dat) {
   
   segments_geometry <- gis_dat %>% 
@@ -225,6 +261,7 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
                 "avg_load", "avg_load_q50", "avg_load_q90", "avg_load_q10", "trips"), as.numeric) %>%
     mutate(avg_speed_cv = as.numeric((avg_speed_sd)) / as.numeric((avg_speed))) %>%
     rowwise() %>%
+    #mutate(routes_list = fix_routes(routes_list)) %>%
     mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", "))) %>%
     mutate(stops_str = (stops %>% unlist() %>% paste(collapse = ", "))) %>%
     mutate(riders_per_trip_km = ridership / (trips * length / 1000))
@@ -250,6 +287,7 @@ add_route_analytics <- function(compiled_apc_dat, gis_dat) {
               avg_speed_q10 = quant_num(avg_speed, 0.1), 
               avg_speed_q90 = quant_num(avg_speed, 0.9), 
               trips = n()) %>% 
+    mutate(route_fixed = fix_routes(c(route))) %>%
     left_join(segments_geometry)
   
   return(segments_with_apc_route_analytics) 
