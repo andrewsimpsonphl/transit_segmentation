@@ -22,7 +22,7 @@ nested_data <- gis_dat %>%
 # step 3.3: compile APC trip data to the segment level
 FINAL_ID_LIST <- unique((as.numeric(nested_data$FINAL_ID)))
 list <- c(1 : length(FINAL_ID_LIST))
-#list <- c(1 : 2)
+list <- c(1 : 200)
 final_segments <- data.frame()
 for(val in list) {
   print(paste("Running segment number:", FINAL_ID_LIST[val], sep = " "))
