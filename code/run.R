@@ -21,9 +21,21 @@ nested_data <- gis_dat %>%
 
 # step 3.3: compile APC trip data to the segment level
 FINAL_ID_LIST <- unique((as.numeric(nested_data$FINAL_ID)))
-list <- c(1 : length(FINAL_ID_LIST))
-list <- c(1 : 200)
 final_segments <- data.frame()
+
+
+list <- c(1 : 200)
+
+for(val in list) {
+  print(paste("Running segment number:", FINAL_ID_LIST[val], sep = " "))
+  x <- compile_apc_dat(nested_data[val])
+  final_segments <- rbind(final_segments, x)
+  mem_used() #%>% paste("currently used memory", sep = " ")  %>% print()
+  paste(val, "of", length(list), "segments complete - ", round(val/length(list)*100, 2), "%", sep = " ") %>% print()
+}
+
+list <- c(201 : length(FINAL_ID_LIST))
+
 for(val in list) {
   print(paste("Running segment number:", FINAL_ID_LIST[val], sep = " "))
   x <- compile_apc_dat(nested_data[val])
