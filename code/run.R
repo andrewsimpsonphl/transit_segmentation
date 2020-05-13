@@ -54,4 +54,20 @@ segments_with_apc_route_analytics <- final_segments %>%
 st_write(segments_with_apc_analytics, "./data/segments_analyzed.geojson", driver = "GeoJSON", delete_dsn = TRUE)
 st_write(segments_with_apc_route_analytics, "./data/segments_routes_analyzed.geojson", driver = "GeoJSON", delete_dsn = TRUE)
 
+# Step 7: Import Reuben's Analyzed Segments and Prepare GeoJSON
+scored_segments <- st_read("./data/City_Transit_segments_May_11_A/City_Transit_segments_May_11_A.shp")
 
+scored_segments_output <- scored_segments %>%
+  mutate(ridership_percentile = percent_rank(ridership)) %>%
+  mutate(ridership_km_percentile = percent_rank(riders_per)) %>%
+  mutate(score_percentile = percent_rank(M1_Raw)) %>% 
+  mutate(low_inc_percentile = percent_rank(pct_low))
+
+ggplot(scored_segments_output, aes(ridership_km_percentile, score_percentile, color = pct_low)) + 
+  geom_point() +
+  scale_colour_continuous(type = "viridis") +
+  geom_smooth(method = "lm", se = FALSE)
+
+
+
+st_write(scored_segments_output, "./data/scored_segments.geojson", driver = "GeoJSON", delete_dsn = TRUE)

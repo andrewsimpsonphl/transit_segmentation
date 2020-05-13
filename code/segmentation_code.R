@@ -133,6 +133,7 @@ compile_apc_dat <- function(nested_data) {
           run = as.duration(last(hms(time_stamp)) - first(hms(time_stamp))),
           trip_begin = (first((time_stamp))),
           trip_end = (last((time_stamp))),
+          dwell_sum = as.duration(sum(dwell_time, na.rm = TRUE)),
           route = paste(unique(route_id), collapse = ", "),
           direction = paste(unique(direction_id), collapse = ", "),
           source = paste(unique(source), collapse = ", "),
@@ -253,6 +254,7 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     mutate(avg_load_q10 = map(trip_dat, ~quant_num(.$avg_load, 0.1))) %>%
     mutate(avg_load_q50 = map(trip_dat, ~quant_num(.$avg_load, 0.5))) %>%
     mutate(avg_load_q90 = map(trip_dat, ~quant_num(.$avg_load, 0.9))) %>%
+    mutate(service_hours = map(trip_dat, ~(sum(.$run) / 60) %>% round(2))) %>%
     mutate(avg_speed_sd = map(trip_dat, ~sd(as.numeric(unlist(.$avg_speed) , na.rm = TRUE), na.rm = TRUE))) %>%
     mutate(ridership = na_if(ridership, 0)) %>%
     mutate(riders_per_m = ridership / length) %>%
@@ -264,7 +266,7 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     #mutate(routes_list = fix_routes(routes_list)) %>%
     mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", "))) %>%
     mutate(stops_str = (stops %>% unlist() %>% paste(collapse = ", "))) %>%
-    mutate(riders_per_trip_km = ridership / (trips * length / 1000))
+    mutate(riders_per_service_hour = ridership / service_hours)
   return(output) 
 }
 
@@ -286,7 +288,9 @@ add_route_analytics <- function(compiled_apc_dat, gis_dat) {
               avg_speed_q50 = quant_num(avg_speed, 0.5),
               avg_speed_q10 = quant_num(avg_speed, 0.1), 
               avg_speed_q90 = quant_num(avg_speed, 0.9), 
-              trips = n()) %>% 
+              trips = n(), 
+              service_hours = sum(run) / 60 %>% round(2),
+              riders_per_service_hour = sum(ridership) / service_hours) %>% 
     mutate(route_fixed = fix_routes(c(route))) %>%
     left_join(segments_geometry)
   
