@@ -254,7 +254,7 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     mutate(avg_load_q10 = map(trip_dat, ~quant_num(.$avg_load, 0.1))) %>%
     mutate(avg_load_q50 = map(trip_dat, ~quant_num(.$avg_load, 0.5))) %>%
     mutate(avg_load_q90 = map(trip_dat, ~quant_num(.$avg_load, 0.9))) %>%
-    mutate(service_hours = map(trip_dat, ~(sum(.$run) / 60) %>% round(2))) %>%
+    mutate(service_hours = map(trip_dat, ~(sum(.$run) / 60) %>% round(2)) %>% as.numeric()) %>%
     mutate(avg_speed_sd = map(trip_dat, ~sd(as.numeric(unlist(.$avg_speed) , na.rm = TRUE), na.rm = TRUE))) %>%
     mutate(ridership = na_if(ridership, 0)) %>%
     mutate(riders_per_m = ridership / length) %>%
