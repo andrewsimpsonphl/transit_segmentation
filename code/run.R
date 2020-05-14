@@ -34,8 +34,8 @@ for(val in list) {
   paste(val, "of", length(list), "segments complete - ", round(val/length(list)*100, 2), "%", sep = " ") %>% print()
 }
 
-list <- c(201 : length(FINAL_ID_LIST))
-
+list <- c(200: length(FINAL_ID_LIST))
+  
 for(val in list) {
   print(paste("Running segment number:", FINAL_ID_LIST[val], sep = " "))
   x <- compile_apc_dat(nested_data[val])
@@ -63,11 +63,26 @@ scored_segments_output <- scored_segments %>%
   mutate(score_percentile = percent_rank(M1_Raw)) %>% 
   mutate(low_inc_percentile = percent_rank(pct_low))
 
+st_write(scored_segments_output, "./data/scored_segments.geojson", driver = "GeoJSON", delete_dsn = TRUE)
+
+# Step 8: Produce General Statistics Figures
+ggplot(scored_segments_output, aes(ridership_percentile, score_percentile, color = pct_low)) + 
+  geom_point() +
+  scale_colour_continuous(type = "viridis") +
+  geom_smooth(method = "lm", se = FALSE)
+
 ggplot(scored_segments_output, aes(ridership_km_percentile, score_percentile, color = pct_low)) + 
   geom_point() +
   scale_colour_continuous(type = "viridis") +
   geom_smooth(method = "lm", se = FALSE)
 
+ggplot(scored_segments_output, aes(pct_low, score_percentile, color = ridership_km_percentile)) + 
+  geom_point() +
+  scale_colour_continuous(type = "viridis") +
+  geom_smooth(method = "lm", se = FALSE)
 
+ggplot(scored_segments_output, aes(pct_low, score_percentile, color = ridership_km_percentile)) + 
+  geom_point() +
+  scale_colour_continuous(type = "viridis") +
+  geom_smooth(method = "lm", se = FALSE)
 
-st_write(scored_segments_output, "./data/scored_segments.geojson", driver = "GeoJSON", delete_dsn = TRUE)
