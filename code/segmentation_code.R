@@ -139,11 +139,8 @@ compile_apc_dat <- function(nested_data) {
           source = paste(unique(source), collapse = ", "),
           ons_total = sum(ons),
           offs_total = sum(offs),
-          #ons_offs = ons_total + offs_total, 
-          #ridership = max(entry_load) + ons_total, 
           max_entry_load = max(entry_load), 
           avg_speed = mean(velocity, na.rm = TRUE),
-          #avg_speed = na_if(avg_speed, Inf),
           avg_load = mean(load, na.rm = TRUE),
           max_load = max(load)) %>%
         as.data.frame() %>%
@@ -254,7 +251,7 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     mutate(avg_load_q10 = map(trip_dat, ~quant_num(.$avg_load, 0.1))) %>%
     mutate(avg_load_q50 = map(trip_dat, ~quant_num(.$avg_load, 0.5))) %>%
     mutate(avg_load_q90 = map(trip_dat, ~quant_num(.$avg_load, 0.9))) %>%
-    mutate(service_hours = map(trip_dat, ~(sum(.$run) / 60) %>% round(2)) %>% as.numeric()) %>%
+    mutate(service_hours = map(trip_dat, ~(sum(.$run) %>% as.numeric() / 60 / 60) %>% round(2))) %>%
     mutate(avg_speed_sd = map(trip_dat, ~sd(as.numeric(unlist(.$avg_speed) , na.rm = TRUE), na.rm = TRUE))) %>%
     mutate(ridership = na_if(ridership, 0)) %>%
     mutate(riders_per_m = ridership / length) %>%

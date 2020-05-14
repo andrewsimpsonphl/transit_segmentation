@@ -86,3 +86,5 @@ ggplot(scored_segments_output, aes(pct_low, score_percentile, color = ridership_
   scale_colour_continuous(type = "viridis") +
   geom_smooth(method = "lm", se = FALSE)
 
+
+
