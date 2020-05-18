@@ -129,14 +129,15 @@ compile_apc_dat <- function(nested_data) {
         lazy_dt(immutable = TRUE) %>%
         mutate(entry_load = first(load)) %>%
         #mutate(ridership = max(entry_load) + sum(ons)) %>%
+        group_by(route_id, direction_id, pattern_id, source) %>%
         summarise(
           run = as.duration(last(hms(time_stamp)) - first(hms(time_stamp))),
           trip_begin = (first((time_stamp))),
           trip_end = (last((time_stamp))),
           dwell_sum = as.duration(sum(dwell_time, na.rm = TRUE)),
-          route = paste(unique(route_id), collapse = ", "),
-          direction = paste(unique(direction_id), collapse = ", "),
-          source = paste(unique(source), collapse = ", "),
+          #route = paste(unique(route_id), collapse = ", "),
+          #direction = paste(unique(direction_id), collapse = ", "),
+          #source = paste(unique(source), collapse = ", "),
           ons_total = sum(ons),
           offs_total = sum(offs),
           max_entry_load = max(entry_load), 
@@ -164,7 +165,7 @@ compile_apc_dat <- function(nested_data) {
     filtered_dat <- filter_trip_list(apc_trip_data, stop_list)
     nested_trip_dat <- nest_trip_data_v2(filtered_dat)
     print(paste("Running passenger data for", count(nested_trip_dat %>% as_tibble()), "trips", sep = " "))
-    final_dat <- run_passenger_data_v2(nested_trip_dat, stop_list) %>% 
+    final_dat <- lazy_dt(run_passenger_data_v2(nested_trip_dat, stop_list)) %>% 
       ungroup()  %>% 
       lazy_dt() %>%
       dt_unnest(calculated_pass) %>%
@@ -263,7 +264,9 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     #mutate(routes_list = fix_routes(routes_list)) %>%
     mutate(routes_str = (routes_list %>% unlist() %>% paste(collapse = ", "))) %>%
     mutate(stops_str = (stops %>% unlist() %>% paste(collapse = ", "))) %>%
-    mutate(riders_per_service_hour = ridership / service_hours)
+    mutate(riders_per_service_hour = ridership / service_hours) %>%
+    mutate(service_hour_km = service_hours / (length / 1000)) %>%
+    mutate(service_hours = as.numeric(service_hours))
   return(output) 
 }
 

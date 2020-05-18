@@ -4,7 +4,7 @@ library(dtplyr)  ;  library(tidyfast)  ;  library(pryr)
 
 source("code/segmentation_code.R")
 
-library(googledrive)
+#library(googledrive)
 #drive_auth(use_oob = TRUE)
 #drive_download("preped_apc_data.feather", path = "./data/preped_apc_data.feather", overwrite = TRUE)
 
@@ -81,10 +81,6 @@ ggplot(scored_segments_output, aes(pct_low, score_percentile, color = ridership_
   scale_colour_continuous(type = "viridis") +
   geom_smooth(method = "lm", se = FALSE)
 
-ggplot(scored_segments_output, aes(pct_low, score_percentile, color = ridership_km_percentile)) + 
-  geom_point() +
-  scale_colour_continuous(type = "viridis") +
-  geom_smooth(method = "lm", se = FALSE)
 
 
 
