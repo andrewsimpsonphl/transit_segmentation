@@ -1,0 +1,262 @@
+---
+title: "Potential Benefits of Bus Lanes on Market Street and JFK Boulevard"
+author: 'Staff Contact: Andrew Simpson (andrew.simpson@phila.gov)'
+date: "5/15/2020"
+output:
+  html_document:
+    df_print: paged
+font-family: Open Sans;
+---
+
+<style type="text/css">
+body{ /* Normal  */
+  font-family: "Open Sans";
+  font-size: 14px;
+  }
+h1.title {
+  font-family: "Montserrat";
+  font-size: 36px;
+  color: `rphl::get_colors("light_blue")`;
+}
+h3.subtitle {
+  font-family: "Montserrat";
+  font-size: 28px;
+  color: `rphl::get_colors("light_blue")`;
+}
+h1 { /* Header 1 */
+  font-family: "Montserrat";
+  font-size: 28px;
+  
+}
+h2 { /* Header 2 */
+  font-family: "Montserrat";
+  font-size: 22px;
+  
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  font-family: "Montserrat";
+  
+}
+</style>
+
+```{r setup, include=FALSE, warning=TRUE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse) ; library(jsonlite) ; library(lubridate) ; library(grid)
+library(sf)  ;  library(knitr) ; library(rphl) ; library(scales) ; library(ggrepel) ; library(gridExtra)
+#extrafont::loadfonts()
+
+segments_with_apc_analytics <- read_sf("./data/segments_analyzed.geojson")
+summary(segments_with_apc_analytics)
+
+market_jfk <- segments_with_apc_analytics %>% 
+  filter(FINAL_ID == 104311 | FINAL_ID == 107111) %>%
+  select(c(FINAL_ID, trips, service_hours, ridership, riders_per_km))  %>%
+  mutate(segment_name = case_when(
+    FINAL_ID == 104311 ~ "Market Street",
+    FINAL_ID == 107111 ~ "JFK Blvd"))
+
+gathered <- market_jfk %>%
+  mutate(zero = service_hours) %>%
+  mutate(five = service_hours * .95) %>%
+  mutate(ten = service_hours * .90) %>%
+  mutate(fifteen = service_hours * .85) %>%
+  mutate(twenty = service_hours * .80) %>%
+  gather(`zero`, `five`, `ten`, `fifteen`, `twenty`,
+         key = "reduction_level", value = "revenue_hours") %>%
+  mutate(cost = as.numeric(revenue_hours) * 156.05) %>% # $156.05 - SEPTA NTD report bus cost per service hour
+  mutate(cost_per_rider = cost / ridership) %>%
+  mutate(service_min_per_trip = as.numeric(revenue_hours) / trips * 60) %>%
+  mutate(service_time_ptrip = (service_min_per_trip %>% dminutes() %>% as.Date(origin = "2020-05-15"))) %>%
+  mutate(reduction_level = factor(reduction_level, levels = c("zero", "five", "ten", "fifteen", "twenty")))
+
+set_to_current <- market_jfk %>%
+  mutate(five = (service_hours * .95) - service_hours) %>%
+  mutate(ten = (service_hours * 0.9) - service_hours) %>%
+  mutate(fifteen = (service_hours * 0.85) - service_hours) %>%
+  mutate(twenty = (service_hours * 0.8) - service_hours) %>%
+  gather(`five`, `ten`, `fifteen`, `twenty`,
+         key = "reduction_level", value = "revenue_hour_reduction") %>%
+  mutate(value = abs(as.numeric(revenue_hour_reduction)) * 156.05) %>% # $156.05 - SEPTA NTD report bus cost per service hour
+  mutate(value_per_rider = value / ridership) %>%
+  mutate(service_min_per_trip_reduction = dminutes(as.numeric(revenue_hour_reduction) / trips * 60)) %>%
+  mutate(reduction_level = factor(reduction_level, levels = c("five", "ten", "fifteen", "twenty")))
+
+market_value_10 <- 250 * set_to_current %>% filter(segment_name == "Market Street" & reduction_level == "ten") %>% as_tibble() %>% select(value) %>% as.numeric()
+jfk_value_10 <- 250 * set_to_current %>% filter(segment_name == "JFK Blvd" & reduction_level == "ten") %>% as_tibble() %>% select(value) %>% as.numeric()
+
+```
+
+## Market & JFK Estimated Improvements
+
+This document estimates potential time and cost savings of bus lane installation on Market Street and JFK Boulevard between 20th and 15th Streets. Running time data is taken from 2019 Spring APC data and essentially represents the average spring weekday. 
+
+### Key Assumptions
+This this analysis makes the following assumptions:
+
+1. Reductions will be applied equally across all trips and across the day along the corridor;
+2. Time savings ignore dwell time, as this uses both Infodev and UTA APC data, the latter of which does not include dwell time; and
+3. Any savings in running time can immediately be recouped and/or has inherent monetary value.
+
+A discussion on the possibility and value of a more detailed analysis is included at the end of the document. 
+
+## Existing Conditions
+
+Market Street and JFK Boulevard are two of the most important corridors in the City for transit. Together, they serve over 1,100 bus trips per day and over 20,000 passengers.
+
+```{r trips, echo=FALSE, warning=FALSE, message=FALSE, out.width = '100%'}
+p1 <- ggplot(gathered, aes(x=segment_name, y = trips)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  #ggtitle("Market and JFK serve over 1,100 Bus Trips per Day") + 
+  ylab("Daily Trips (2019)") + 
+  xlab("") + 
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "") + 
+  theme_phl() + 
+  theme(legend.position = "top")
+
+p2 <- ggplot(gathered, aes(x=segment_name, y = revenue_hours)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  #ggtitle("Market and JFK serve over 60 Revenue Hours per Day") + 
+  ylab("Revenue Hours (2019)") + 
+  xlab("") + 
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "") + 
+  theme_phl() + 
+  theme(legend.position = "top")
+
+grid.arrange(p1, p2, nrow = 1,
+             top = textGrob("Market and JFK Serve over 1,200 Bus Trips and 60 Revenue Hours per Day", 
+                            gp=gpar(fontsize=12,fontfamily="Montserrat")))
+```
+```{r ridership, echo=FALSE, warning=FALSE, message=FALSE, out.width='100%', fig.height=10}
+plot_dat <- segments_with_apc_analytics %>%
+  arrange(-ridership) %>%
+  slice(1:50) %>%
+  mutate( ToHighlight = ifelse( FINAL_ID == 104311 | FINAL_ID == 107111, "yes", "no" ) ) %>%
+  mutate(lab = case_when(
+    FINAL_ID == 104311 ~ "Market Street",
+    FINAL_ID == 107111 ~ "JFK Blvd",
+    TRUE ~ ""))
+
+green = rphl::get_colors("phanatic_green")
+gray = rphl::get_colors("medium_gray")
+
+p1 <- ggplot(plot_dat, aes(x=reorder(FINAL_ID, ridership), y = ridership, fill = ToHighlight)) + 
+  ggtitle("Market and JFK Among Top Ridership Segments in City") + 
+  geom_bar(position="dodge", stat="identity") + 
+  geom_text_repel(aes(y = ridership, label=lab), 
+                  position = position_dodge(width = 1), 
+                  vjust = 1, 
+                  hjust = -0.25, 
+                  angle=0, 
+                  size=4,
+                  family="Montserrat") + 
+  scale_fill_phl(palette = "dark", discrete = T) +
+  scale_y_continuous(name = "Top 50 Corridors by Daily Ridership (2019)", 
+                     labels = scales::comma, limits = c(0, 20000), breaks = seq(0, 20000, by=2500)) +
+  coord_flip() +
+  theme_phl() + 
+  theme(legend.position = "none") +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+
+p2 <- ggplot(plot_dat, aes(x=reorder(FINAL_ID, -avg_speed), y = avg_speed, fill = ToHighlight)) + 
+  ggtitle("Market and JFK Among Slowest High-Ridership Segments in City") + 
+  geom_bar(position="dodge", stat="identity") + 
+  geom_text_repel(aes(label=lab), 
+                  position = position_dodge(width = 1), 
+                  hjust = -1.25, 
+                  size=4,
+                  family="Montserrat") + 
+  scale_fill_phl(palette = "dark", discrete = T) +
+  scale_y_continuous(name = "Average Bus Speed of Top 50 Ridership Corridors (2019)", 
+                     labels = scales::comma, limits = c(0, 20), breaks = seq(0, 20, by=2.5)) +
+  coord_flip() +
+  theme_phl() + 
+  theme(legend.position = "none") +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+
+grid.arrange(p1, p2, nrow = 2)
+
+```
+
+
+## Visualizing Improvements
+The following charts show the potential immprovements that bus lane installation could provide across different levels of time savings, ranging from 5% to 20%. A reduction of 10% travel time would be a reasonable time savings for a project of this nature. 
+
+```{r revenue_hour_reduction, echo=FALSE, warning=FALSE, message=FALSE, out.width = '100%'}
+ggplot(gathered, aes(x=reduction_level, y=as.numeric(revenue_hours), fill = segment_name)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  #scale_y_continuous(limits = c(0, 1250), breaks=seq(0, 1250, by = 250)) + 
+  scale_x_discrete(labels=c("Current", "5%", "10%", "15%", "20%")) + 
+  coord_cartesian(ylim=c(10,35)) + 
+  ggtitle("Estimated Reduction in Revenue Hours") + 
+  xlab("Percent Reduction in Running Time (Revenue Hours)") + 
+  ylab("Aggregate Daily Revenue Hours on Corridor (2019)") + 
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "") + 
+  theme_phl() + 
+  theme(legend.position = "top")
+```
+
+
+```{r service_min_per_trip, echo=FALSE, warning=FALSE, message=FALSE, out.width = '100%'} 
+ggplot(set_to_current, aes(x=reduction_level, y=service_min_per_trip_reduction, fill = segment_name)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  #scale_y_continuous(limits = c(0, -60), breaks=seq(0, -60, by = 10)) + 
+  scale_y_time(limits = c(-60, 0)) +
+  scale_x_discrete(labels=c("5%", "10%", "15%", "20%")) + 
+  scale_fill_discrete(name="Segment Name") + 
+  theme_minimal() + 
+  ggtitle("Estimated Reduction in Running Time per Trip") + 
+  xlab("Percent Reduction in Running Time (Revenue Hours)") + 
+  ylab("Revenue Minutes per Trip on Corridor") + 
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "") + 
+  theme_phl() + 
+  theme(legend.position = "top")
+```
+
+
+On a per trip basis, passengers would see a per-trip reduciton of 20 seconds per trip at a 10% reduction. *Note: a more accurate measure would look at individual trips and calculate a per-rider time savings.*
+
+
+**Perhaps mostly importantly, however, is the value proposition.** This chart shows the potential cost savings from running time improvements that could be reallocated to additional service. 
+
+
+``` {r value_chart, echo=FALSE, warning=FALSE, message=FALSE, out.width = '100%'}
+ggplot(set_to_current, aes(x=reduction_level, y=value, fill = segment_name)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  scale_y_continuous(labels=scales::dollar, limits = c(0, 1250), breaks = seq(0, 1250, by = 250)) + 
+  scale_x_discrete(labels=c("5%", "10%", "15%", "20%")) + 
+  scale_fill_discrete(name="Segment Name") + 
+  theme_minimal()  + 
+  ggtitle("Estimated Reduction in Operating Costs") + 
+  xlab("Percent Reduction in Running Time") + 
+  ylab("Daily Value of Running Time Reduction") +
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "") + 
+  theme_phl() + 
+  theme(legend.position = "top")
+```
+
+## Results
+
+- Bus lanes on Market Street and JFK Boulevard (between 15th and 20th Streets) have the potential to reduce operating costs for SEPTA and save passengers time. 
+- A 10% reduction time across a day's worth of trips could be valued at approximately $500 per day for each corridor. Given that there are approximately 250 working weekdays in 2020, this estimate would put value the bus lane at `r market_value_10 %>% dollar() ` for Market Street and `r jfk_value_10 %>% dollar()` for JFK per year in terms of operational savings. Together, this would be approximately **`r (market_value_10 + jfk_value_10) %>% dollar() `** per year.
+
+## Potential Extensions
+This project provides the foundation for much more accurate modeling of time savings for transit priority projects in the city, without the need for significant additional data. 
+
+A future development roadmap could include:
+
+- Reviewing assumptions about how different improvements generate different time savings;
+- Modeling more complexly the disparate impacts of improvements at different times of day;
+- More complely modeling the value of time savings at different times of day; and
+- Incorporate scheduling information to highlight periods where time savings could "save a bus."
+
+All of the above extensions would be possible with the existing data infrastructure provided by SEPTA. However, a "big data" approach would extend this beyond the "average day" and allow us to model improvements across actual trips on actual days and generate estimated savings more accurately.
