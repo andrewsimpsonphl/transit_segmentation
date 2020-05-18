@@ -46,7 +46,7 @@ library(tidyverse) ; library(jsonlite) ; library(lubridate) ; library(grid)
 library(sf)  ;  library(knitr) ; library(rphl) ; library(scales) ; library(ggrepel) ; library(gridExtra)
 #extrafont::loadfonts()
 
-segments_with_apc_analytics <- read_sf("./data/segments_analyzed.geojson")
+segments_with_apc_analytics <- read_sf("./segments_analyzed.geojson")
 summary(segments_with_apc_analytics)
 
 market_jfk <- segments_with_apc_analytics %>% 
