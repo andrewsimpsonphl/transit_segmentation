@@ -1,5 +1,10 @@
 # external scrips for usage.rmd
 
+library(tidyverse) ; library(httr) ; library(jsonlite) ; library(geojsonsf) ; library(lubridate)
+library(sf)  ;  library(htmltools) ; library(knitr)  ; library(feather)  ;  library(dplyr)
+library(dtplyr)  ;  library(tidyfast)  ;  library(pryr) ; library(readxl)
+library(editData)
+
 ## @knitr pull_data
 
 pull_arcgis_dat <- function() {
@@ -185,10 +190,18 @@ find_trip_dat_v2 <- function(apc_trip_data, stop_list) {
   final_dat <- lazy_dt(run_passenger_data_v2(nested_trip_dat, stop_list)) %>%
     ungroup()  %>%
     lazy_dt() %>%
-    dt_unnest(calculated_pass) %>%
-    filter(run > as.duration(0)) # filter out trips that only make 1 stop on the corridor
+    dt_unnest(calculated_pass)
   
-  return(final_dat)
+  if(final_dat$route_id == 500){
+    # do nothing for Direct Bus   
+    return(final_dat)
+  } else{
+    #print(final_dat$route_id)
+    final_dat <- final_dat %>% filter(run > as.duration(0)) # filter out trips that only make 1 stop on the corridor
+    return(final_dat)
+  }
+  
+  
   gc()
 }
 
@@ -223,7 +236,7 @@ fix_routes <- function(route_list){
   
   char_vect <- c(`331` = "33S",
                  `101` = "10B",
-                 `471` = "47M",
+                 `471` = "47",
                  `701` = "BSO",
                  `702` = "C",
                  `703` = "G",
@@ -263,7 +276,9 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     as.numeric(unlist(quantile(speed, probs=c(level), na.rm = TRUE)))
   }
   
-  output <- compiled_apc_dat %>% left_join(segments_geometry) %>%
+  output <- compiled_apc_dat %>% 
+    mutate(trip_dat = map(trip_dat, ~filter(.,  .$avg_speed < 40 & .$avg_speed > 0))) %>% # filter speeds between 0 and 40 b/c NJT data is weird
+    left_join(segments_geometry) %>%
     mutate(ridership = map_dbl(trip_dat, ~sum(.$ridership, na.rm = TRUE))) %>%
     mutate(avg_speed = map(trip_dat, ~as.numeric(mean(.$avg_speed, na.rm = TRUE)))) %>%
     mutate(avg_speed_q10 = map(trip_dat, ~quant_num(.$avg_speed, 0.1))) %>%
@@ -290,7 +305,12 @@ add_analytics <- function(compiled_apc_dat, gis_dat) {
     mutate(riders_per_service_hour = ridership / service_hours) %>%
     mutate(service_hour_km = service_hours / (length / 1000)) %>%
     mutate(service_hours = as.numeric(service_hours))
+  
   return(output)
+}
+
+quant_num <- function(speed, level) {
+  as.numeric(unlist(quantile(speed, probs=c(level), na.rm = TRUE)))
 }
 
 add_route_analytics <- function(compiled_apc_dat, gis_dat) {
@@ -300,9 +320,7 @@ add_route_analytics <- function(compiled_apc_dat, gis_dat) {
     summarise() %>%
     mutate(length = st_length(geometry))
   
-  quant_num <- function(speed, level) {
-    as.numeric(unlist(quantile(speed, probs=c(level), na.rm = TRUE)))
-  }
+
   
   segments_with_apc_route_analytics <- compiled_apc_dat %>% unnest(cols = c(trip_dat)) %>%
     group_by(FINAL_ID, route_id) %>%
@@ -314,10 +332,72 @@ add_route_analytics <- function(compiled_apc_dat, gis_dat) {
               trips = n(),
               service_hours = sum(run) / 60 %>% round(2),
               riders_per_service_hour = sum(ridership) / service_hours) %>%
-    mutate(route_fixed = fix_routes(c(route_id))) %>%
+    mutate(route_fixed = fix_routes(route_id)) %>%
     left_join(segments_geometry) %>% 
     mutate(riders_per_km = daily_ridership / (length / 1000))
   
   return(segments_with_apc_route_analytics)
+}
+
+analyze_segment <- function(trip_dat) {
+  output <- trip_dat %>% 
+    group_by() %>% 
+    summarise(
+      daily_ridership = sum(ridership),
+      trips = n(),
+      routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
+      service_hours = sum(run) / 60 %>% round(2),
+      avg_segment_speed = mean(avg_speed, na.rm = TRUE),
+      avg_speed_10_pct = quant_num(avg_speed, 0.1),
+      avg_speed_90_pct = quant_num(avg_speed, 0.9)
+    )
+}
+
+analyze_segment_hourbin <- function(trip_dat) {
+  output <- trip_dat %>% 
+    mutate(trip_hour = trip_begin %>% as.character() %>% hms() %>% hour()) %>%
+    mutate(timeframe = case_when(
+      trip_hour <=6 ~"Early AM",
+      trip_hour >=7 & trip_hour <=10 ~"AM Rush",
+      trip_hour >=11 & trip_hour <=14 ~"Afternoon",
+      trip_hour >=15 & trip_hour <=20 ~"PM Rush",
+      trip_hour >=21 & trip_hour <=24 ~"Evening",
+    )) %>% 
+    mutate(timeframe = factor(timeframe, ordered = TRUE, 
+                              levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
+    group_by(timeframe) %>% 
+    summarise(
+      daily_ridership = sum(ridership),
+      trips = n(),
+      routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
+      service_hours = sum(run) / 60 %>% round(2),
+      avg_segment_speed = mean(avg_speed, na.rm = TRUE),
+      avg_speed_10_pct = quant_num(avg_speed, 0.1),
+      avg_speed_90_pct = quant_num(avg_speed, 0.9)
+    )
+}
+
+analyze_segment_route_hourly <- function(trip_dat) {
+  output <- trip_dat %>% 
+    mutate(trip_hour = trip_begin %>% as.character() %>% hms() %>% hour()) %>%
+    mutate(timeframe = case_when(
+      trip_hour <=6 ~"Early AM",
+      trip_hour >=7 & trip_hour <=10 ~"AM Rush",
+      trip_hour >=11 & trip_hour <=14 ~"Afternoon",
+      trip_hour >=15 & trip_hour <=20 ~"PM Rush",
+      trip_hour >=21 & trip_hour <=24 ~"Evening",
+    )) %>% 
+    mutate(timeframe = factor(timeframe, ordered = TRUE, 
+                              levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
+    group_by(trip_hour, route_id) %>% 
+    summarise(
+      daily_ridership = sum(ridership),
+      trips = n(),
+      #routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
+      service_hours = sum(run) / 60 %>% round(2),
+      avg_segment_speed = mean(avg_speed, na.rm = TRUE),
+      avg_speed_10_pct = quant_num(avg_speed, 0.1),
+      avg_speed_90_pct = quant_num(avg_speed, 0.9)
+    )
 }
 
