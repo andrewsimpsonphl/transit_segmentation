@@ -26,8 +26,6 @@ library(sf)
 library(httr)
 library(geojsonsf)
 
-#install.packages("devtools")
-devtools::install_github("jmt2080ad/polylineSplitter")
 
 source("code/segmentation_code.R")
 # step 2: pull in coded links from AGO 
@@ -45,14 +43,9 @@ stops_by_route <- spring_2019_gtfs$stop_times %>% mutate(stop_id = as.numeric(st
   ungroup()
 
 gtfs_sf <- gtfs_as_sf(spring_2019_gtfs)
-gtfs_sf
 
 route_sf <- get_route_geometry(gtfs_sf)
 stop_sf <- gtfs_sf$stops %>% mutate(stop_id = as.numeric(stop_id)) %>% full_join(stops_by_route)
-
-route_42_sf <- route_sf %>% filter(route_id == 42)
-route_42_sf <- get_route_geometry(gtfs_sf, route_ids = c(42))
-route_42_stops_sf <- stop_sf %>% filter(route_id == 42)
 
 # how to look at one route shape at a time
 test_shape <- spring_2019_gtfs$shapes %>% filter(shape_id == 220752) %>% tidytransit::shapes_as_sf()
