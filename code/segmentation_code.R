@@ -330,7 +330,7 @@ add_route_analytics <- function(compiled_apc_dat, gis_dat) {
               avg_speed_q10 = quant_num(avg_speed, 0.1),
               avg_speed_q90 = quant_num(avg_speed, 0.9),
               trips = n(),
-              service_hours = sum(run) / 60 %>% round(2),
+              service_hours = sum(run) / 60 / 60 %>% round(2),
               riders_per_service_hour = sum(ridership) / service_hours) %>%
     mutate(route_fixed = fix_routes(route_id)) %>%
     left_join(segments_geometry) %>% 
@@ -343,10 +343,12 @@ analyze_segment <- function(trip_dat) {
   output <- trip_dat %>% 
     group_by() %>% 
     summarise(
-      daily_ridership = sum(ridership),
+      daily_ridership = round(sum(ridership), 0),
       trips = n(),
       routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
-      service_hours = sum(run) / 60 %>% round(2),
+      service_hours = sum(run) / 60 / 60 %>% round(2),
+      riders_per_hour = round(daily_ridership / service_hours, 2),
+      avg_dwell_min = round(mean(dwell_sum, na.rm = TRUE) / 60, 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
       avg_speed_10_pct = quant_num(avg_speed, 0.1),
       avg_speed_90_pct = quant_num(avg_speed, 0.9)
@@ -367,10 +369,12 @@ analyze_segment_hourbin <- function(trip_dat) {
                               levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
     group_by(timeframe) %>% 
     summarise(
-      daily_ridership = sum(ridership),
+      daily_ridership = round(sum(ridership), 0),
       trips = n(),
       routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
-      service_hours = sum(run) / 60 %>% round(2),
+      service_hours = sum(run) / 60 / 60 %>% round(2),
+      riders_per_hour = round(daily_ridership / service_hours, 2),
+      avg_dwell_min = round(mean(dwell_sum, na.rm = TRUE) / 60, 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
       avg_speed_10_pct = quant_num(avg_speed, 0.1),
       avg_speed_90_pct = quant_num(avg_speed, 0.9)
@@ -391,13 +395,66 @@ analyze_segment_route_hourly <- function(trip_dat) {
                               levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
     group_by(trip_hour, route_id) %>% 
     summarise(
-      daily_ridership = sum(ridership),
+      daily_ridership = round(sum(ridership), 0),
       trips = n(),
       #routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
-      service_hours = sum(run) / 60 %>% round(2),
-      avg_segment_speed = mean(avg_speed, na.rm = TRUE),
-      avg_speed_10_pct = quant_num(avg_speed, 0.1),
-      avg_speed_90_pct = quant_num(avg_speed, 0.9)
+      service_hours = round(sum(run) / 60 / 60, 2),
+      riders_per_hour = round(daily_ridership / service_hours, 2),
+      avg_dwell_min = round(mean(dwell_sum, na.rm = TRUE) / 60, 2),
+      avg_segment_speed = round(mean(avg_speed, na.rm = TRUE), 2),
+      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
+      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2)
     )
 }
 
+analyze_segment_hourly <- function(trip_dat) {
+  output <- trip_dat %>% 
+    mutate(trip_hour = trip_begin %>% as.character() %>% hms() %>% hour()) %>%
+    # mutate(timeframe = case_when(
+    #   trip_hour <=6 ~"Early AM",
+    #   trip_hour >=7 & trip_hour <=10 ~"AM Rush",
+    #   trip_hour >=11 & trip_hour <=14 ~"Afternoon",
+    #   trip_hour >=15 & trip_hour <=20 ~"PM Rush",
+    #   trip_hour >=21 & trip_hour <=24 ~"Evening",
+    # )) %>% 
+    # mutate(timeframe = factor(timeframe, ordered = TRUE, 
+    #                           levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
+    group_by(trip_hour) %>% 
+    summarise(
+      daily_ridership = round(sum(ridership), 0),
+      trips = n(),
+      routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
+      service_hours = round(sum(run) / 60 / 60, 2),
+      riders_per_hour = round(daily_ridership / service_hours, 2),
+      avg_dwell_min = round(mean(dwell_sum, na.rm = TRUE) / 60, 2),
+      avg_segment_speed = round(mean(avg_speed, na.rm = TRUE), 2),
+      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
+      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2)
+    )
+}
+
+analyze_segment_route_direction_hourly <- function(trip_dat) {
+  output <- trip_dat %>% 
+    mutate(trip_hour = trip_begin %>% as.character() %>% hms() %>% hour()) %>%
+    mutate(timeframe = case_when(
+      trip_hour <=6 ~"Early AM",
+      trip_hour >=7 & trip_hour <=10 ~"AM Rush",
+      trip_hour >=11 & trip_hour <=14 ~"Afternoon",
+      trip_hour >=15 & trip_hour <=20 ~"PM Rush",
+      trip_hour >=21 & trip_hour <=24 ~"Evening",
+    )) %>% 
+    mutate(timeframe = factor(timeframe, ordered = TRUE, 
+                              levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
+    group_by(trip_hour, route_id, direction_id) %>% 
+    summarise(
+      daily_ridership = round(sum(ridership), 0),
+      trips = n(),
+      #routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
+      service_hours = round(sum(run) / 60 / 60, 2),
+      riders_per_hour = round(daily_ridership / service_hours, 2),
+      avg_dwell_min = round(mean(dwell_sum, na.rm = TRUE) / 60, 2),
+      avg_segment_speed = round(mean(avg_speed, na.rm = TRUE), 2),
+      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
+      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2)
+    )
+}

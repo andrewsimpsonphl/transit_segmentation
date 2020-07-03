@@ -7,10 +7,10 @@
 #    http://shiny.rstudio.com/
 #
 
-#next: add a buttom that when clicked runs an function that calculates the analytics for the selected links
-# DONE - add button
-# - on button click, find the stop IDs associated with the selected links (in the clicked list)
-# - pass those stopIDs to the function
+# DONE add a buttom that when clicked runs an function that calculates the analytics for the selected links
+# DONE add a download button for an excel file of the tables
+# make the hourly table into a nice, nested, reactable table
+# - add option to download a nice, well formatted PDF using rmd - need to write report function first
 
 library(shiny); library(shinydashboard)
 library(leaflet) ; library(leaflet.extras)
@@ -19,6 +19,7 @@ library(htmltools)
 library(tidyverse)
 library(rgeos)
 library(reactable)
+library(xlsx)
 
 source("./code/segmentation_code.R")
 
@@ -43,36 +44,119 @@ link_stop_data <- links %>% mutate(fromto = as.character(fromto), secondLocation
 
 coordinates = link_stop_data$geometry
 #print(coordinates)
+
+file_output <- NULL
     
 # import APC data
 apc_data <- read.csv("./data/combined_apc_dataset.csv") %>%  mutate(stop_id = paste0(agency_id, stop_id))
 
-ui <- dashboardPage(
+create_stops <- function() {
+    stop_data <- st_read("./data/spring_2019_shp/4f34c6b9-ba39-4c63-9f54-8d44c7320d5c202047-1-1yyct9k.fqq8.shp") %>% 
+        mutate_if(is.factor, as.character) %>% 
+        group_by(Stop_ID, Stop_Name, Mode) %>% 
+        summarise(routes = list(unique(Route)),
+                  daily_boards = sum(Weekday_Bo),
+                  daily_leaves = sum(Weekday_Le)) %>% 
+        rowwise() %>% 
+        mutate(route_str = paste(unlist(routes), collapse = ", "))
+    
+    st_write(stop_data, "./data/stops_ridership.geojson", driver = "GeoJSON", delete_dsn = TRUE)
+}
+#create_stops()
+stops_w_ridership <- st_read("./data/stops_ridership.geojson") %>% 
+    mutate_if(is.factor, as.character) %>% 
+    mutate(route_list = as.list(strsplit(as.character(route_str), ","))) 
+
+ui <- dashboardPage(skin = "green",
     dashboardHeader(title = "Transit First  Dashboard"),
-    dashboardSidebar(),
+    dashboardSidebar(
+        sidebarMenu(
+            menuItem("Segment Analysis", tabName = "dashboard", icon = icon("dashboard")),
+            menuItem("Stop Analysis", tabName = "stops", icon = icon("bus")),
+            menuItem("Route Analysis", tabName = "routes", icon = icon("bus"))
+        )
+    ),
     dashboardBody(
-        fluidRow(
-               box(width = NULL, solidHeader = TRUE, 
-                   leafletOutput("link_map", height = 600))
-               ),
-        fluidRow(
-            column(width = 3, 
-                   box( 
-                       actionButton("calculate", "Calculate Analytics"),
-                       p(class = "text-muted",
-                         br(),
-                         "Calculate analytics for selected segments.",
-                         br(),
-                         "Caution: this may take awhile."
-                       )
-                       ) 
-            ), 
-            column(width = 8, 
-               box(tableOutput("analytics_table"), width = NULL),
-               box(tableOutput("analyticsB_table"), width = NULL),
-               box(reactableOutput("analyticsC_table"), width = NULL)
+        tabItems(
+            tabItem(tabName = "dashboard",
+            fluidRow(
+                   box(width = NULL, solidHeader = TRUE, 
+                       leafletOutput("link_map", height = 500))
+                   ),
+            fluidRow(
+                column(width = 8, 
+                       box( 
+                           actionButton("calculate", "Calculate Analytics"),
+                           p(class = "text-muted",
+                             br(),
+                             "Calculate analytics for selected segments.",
+                             br(),
+                             "Caution: this may take awhile."
+                            )
+                         ),
+                       box(downloadButton("downloadData", "Download"),
+                           p(class = "text-muted",
+                             br(),
+                             "Download Excel file of analytic tables."
+                           ))
+                ),
+                column(width = 12, 
+                       box(title = "Daily Analytics", solidHeader = TRUE, status = "primary",
+                           tableOutput("analytics_table"), width = NULL),
+                       box(title = "Analytics by Timeframe", solidHeader = TRUE,  status = "primary",
+                           tableOutput("analyticsB_table"), width = NULL),
+                       box(title = "Hourly Analytics", solidHeader = TRUE,  status = "primary",
+                           reactableOutput("analyticsC_table"), width = NULL), 
+                       box(title = "Hourly Analytics by Route", solidHeader = TRUE,  status = "primary",
+                           p("Click to Expand. Use Hourly Analytics table for hourly averages (software limitation to do weighted averages in table)."),
+                           reactableOutput("analyticsD_table"), width = NULL),
+                       box(title = "Hourly Analytics by Route/Direction", solidHeader = TRUE,  status = "primary",
+                           p("Click to Expand. Use Hourly Analytics table for hourly averages (software limitation to do weighted averages in table)."),
+                           p("Be cautious of assuming routes with the same direction go in the same direction - e.g. SB Route 48 and NB Route 17 both go Eastbound on Market Street."),
+                           reactableOutput("analyticsE_table"), width = NULL)
+                    ),
+                )
             ),
-            
+            tabItem(tabName = "stops",
+                    fluidRow(
+                        box(width = NULL, solidHeader = TRUE, 
+                            leafletOutput("stop_map", height = 700))
+                    )
+                    # ),
+                    # fluidRow(
+                    #     column(width = 8, 
+                    #            box( 
+                    #                actionButton("calculate", "Calculate Analytics"),
+                    #                p(class = "text-muted",
+                    #                  br(),
+                    #                  "Calculate analytics for selected segments.",
+                    #                  br(),
+                    #                  "Caution: this may take awhile."
+                    #                )
+                    #            ),
+                    #            box(downloadButton("downloadData", "Download"),
+                    #                p(class = "text-muted",
+                    #                  br(),
+                    #                  "Download Excel file of analytic tables."
+                    #                ))
+                    #     ),
+                    #     column(width = 12, 
+                    #            box(title = "Daily Analytics", solidHeader = TRUE, status = "primary",
+                    #                tableOutput("analytics_table"), width = NULL),
+                    #            box(title = "Analytics by Timeframe", solidHeader = TRUE,  status = "primary",
+                    #                tableOutput("analyticsB_table"), width = NULL),
+                    #            box(title = "Hourly Analytics", solidHeader = TRUE,  status = "primary",
+                    #                reactableOutput("analyticsC_table"), width = NULL), 
+                    #            box(title = "Hourly Analytics by Route", solidHeader = TRUE,  status = "primary",
+                    #                p("Click to Expand. Use Hourly Analytics table for hourly averages (software limitation to do weighted averages in table)."),
+                    #                reactableOutput("analyticsD_table"), width = NULL),
+                    #            box(title = "Hourly Analytics by Route/Direction", solidHeader = TRUE,  status = "primary",
+                    #                p("Click to Expand. Use Hourly Analytics table for hourly averages (software limitation to do weighted averages in table)."),
+                    #                p("Be cautious of assuming routes with the same direction go in the same direction - e.g. SB Route 48 and NB Route 17 both go Eastbound on Market Street."),
+                    #                reactableOutput("analyticsE_table"), width = NULL)
+                    #     ),
+                    # )
+            )
         )
     )
 )
@@ -87,7 +171,7 @@ server <- function(input, output, session) {
         
         leaflet(link_stop_data) %>% 
             addProviderTiles(providers$CartoDB.Positron) %>% 
-            addPolylines(data = link_stop_data, color = "Blue", weight = 4, layerId = link_stop_data$fromto
+            addPolylines(data = link_stop_data, color = "#4377bc", weight = 4, layerId = link_stop_data$fromto, opacity = 0.5
                          #popup = paste0(link_stop_data$FINAL_ID, " - StopID: ", link_stop_data$stops_str),
                          #highlightOptions = highlightOptions(color = "green", weight = 4, bringToFront = TRUE)) %>% 
             ) %>% 
@@ -101,9 +185,9 @@ server <- function(input, output, session) {
                 rectangleOptions = drawRectangleOptions(shapeOptions=drawShapeOptions(fillOpacity = 0
                                                                                       ,color = 'white'
                                                                                       ,weight = 3)),
-                circleOptions = drawCircleOptions(shapeOptions = drawShapeOptions(fillOpacity = 0
-                                                                                  ,color = 'white'
-                                                                                  ,weight = 3)),
+                # circleOptions = drawCircleOptions(shapeOptions = drawShapeOptions(fillOpacity = 0
+                #                                                                   ,color = 'white'
+                #                                                                   ,weight = 3)),
                 editOptions = editToolbarOptions(edit = FALSE, selectedPathOptions = selectedPathOptions()))
         
     })
@@ -293,6 +377,13 @@ server <- function(input, output, session) {
     observeEvent(input$calculate, {
         print("Button click detected")
         
+        id <- showNotification("Calculating Analytics...", 
+                               duration = NULL,
+                               type = "message",
+                               closeButton = FALSE)
+        on.exit(removeNotification(id), add = TRUE)
+        
+        
         # get the ids of the currently selected values
         list <- data_of_click$clickedMarker %>% unlist()
         #print(list)
@@ -318,13 +409,119 @@ server <- function(input, output, session) {
         
         output$analyticsB_table <- renderTable(binned_analytics)
         
-        hourly_route_analytics <- suppressWarnings(analyze_segment_route_hourly(trip_dat))
+        hourly_analytics <- suppressWarnings(analyze_segment_hourly(trip_dat))
         
         output$analyticsC_table <- renderReactable({
-            reactable(hourly_route_analytics)
+            reactable(hourly_analytics, columns = list(
+                trip_hour = colDef(filterable = TRUE))
+            )
         })
+        
+        hourly_route_analytics <- suppressWarnings(analyze_segment_route_hourly(trip_dat))
+        
+        output$analyticsD_table <- renderReactable({
+            reactable(hourly_route_analytics, groupBy = "trip_hour", 
+                      columns = list(
+                        trip_hour = colDef(filterable = TRUE),
+                        route_id = colDef(filterable = TRUE, aggregate = "unique"), 
+                        daily_ridership = colDef(filterable = TRUE, aggregate = "sum"), 
+                        trips = colDef(filterable = TRUE, aggregate = "sum"), 
+                        service_hours = colDef(filterable = TRUE, aggregate = "sum"), 
+                        avg_segment_speed = colDef(filterable = TRUE), 
+                        avg_speed_10_pct = colDef(filterable = TRUE), 
+                        avg_speed_90_pct = colDef(filterable = TRUE)
+                )
+            )
+        })
+        
+        hourly_route_direction_analytics <- suppressWarnings(analyze_segment_route_direction_hourly(trip_dat))
+        #print(hourly_route_direction_analytics)
+        
+        output$analyticsE_table <- renderReactable({
+            reactable(hourly_route_direction_analytics, groupBy = "trip_hour", 
+                      columns = list(
+                          trip_hour = colDef(filterable = TRUE),
+                          route_id = colDef(filterable = TRUE, aggregate = "unique"), 
+                          daily_ridership = colDef(filterable = TRUE, aggregate = "sum"), 
+                          trips = colDef(filterable = TRUE, aggregate = "sum"), 
+                          service_hours = colDef(filterable = TRUE, aggregate = "sum"), 
+                          avg_segment_speed = colDef(filterable = TRUE), 
+                          avg_speed_10_pct = colDef(filterable = TRUE), 
+                          avg_speed_90_pct = colDef(filterable = TRUE)
+                      )
+            )
+        }) 
+        
+        output$downloadData <- downloadHandler(
+            filename = function() {
+                paste("output", ".xlsx", sep = "")
+            },
+            content = function(file) {
+                wb = createWorkbook()
+                
+                sheet1 = createSheet(wb, "analytics")
+                addDataFrame(analytics, sheet=sheet1, startColumn=1, row.names=FALSE)
+                
+                sheet2 = createSheet(wb, "binned_analytics")
+                addDataFrame(as.data.frame(binned_analytics), sheet=sheet2, startColumn=1, row.names=FALSE)
+                
+                sheet3 = createSheet(wb, "hourly_analytics")
+                addDataFrame(as.data.frame(hourly_analytics), sheet=sheet3, startColumn=1, row.names=FALSE)
+                
+                sheet4 = createSheet(wb, "hourly_route_analytics")
+                addDataFrame(as.data.frame(hourly_route_analytics), sheet=sheet4, startColumn=1, row.names=FALSE)
+                
+                sheet5 = createSheet(wb, "hourly_route_direction_analytics")
+                addDataFrame(as.data.frame(hourly_route_direction_analytics), sheet=sheet5, startColumn=1, row.names=FALSE)
+                
+                saveWorkbook(wb, file)
+                #write.csv(hourly_analytics, file, row.names = FALSE)
+                # write.xlsx(analytics, file, sheetName = "analytics")
+                # write.xlsx(binned_analytics, file, sheetName = "binned_analytics")
+                # write.xlsx(hourly_analytics, file, sheetName = "hourly_analytics")
+                # write.xlsx(hourly_route_analytics, file, sheetName = "hourly_route_analytics")
+            }
+        )
+        #file_output <- hourly_analytics
     })
+    
+    output$stop_map <- renderLeaflet({
+        #print(segment_data$FINAL_ID %>%  head())
+        
+        pal <- colorFactor(c("#666666", "#4377bc", "#49B048"), domain = c("Bus", "Highspeed", "Trolley"))
+        
+        leaflet(stops_w_ridership) %>% 
+            setView(zoom = 12, lat = 40.0, lng = -75.166) %>% 
+            addProviderTiles(providers$CartoDB.Positron) %>% 
+            addCircleMarkers(data = stops_w_ridership, layerId = stops_w_ridership$Stop_ID,
+                             radius = log(stops_w_ridership$daily_boards) * 1.3,
+                             color = ~pal(stops_w_ridership$Mode), 
+                             stroke = FALSE,
+                             fillOpacity = 0.5,
+                             popup = paste0("StopID: ", stops_w_ridership$Stop_ID, 
+                                            "<br>", stops_w_ridership$Stop_Name, 
+                                            "<br>", "Routes: ", stops_w_ridership$route_str, 
+                                            "<br>", "Daily Boards: ", stops_w_ridership$daily_boards,
+                                            "<br>", "Daily Leaves: ", stops_w_ridership$daily_leaves)
+            ) %>% 
+            addDrawToolbar(
+                targetGroup='Selected',
+                polylineOptions=FALSE,
+                markerOptions = FALSE,
+                polygonOptions = drawPolygonOptions(shapeOptions=drawShapeOptions(fillOpacity = 0
+                                                                                  ,color = 'white'
+                                                                                  ,weight = 3)),
+                rectangleOptions = drawRectangleOptions(shapeOptions=drawShapeOptions(fillOpacity = 0
+                                                                                      ,color = 'white'
+                                                                                      ,weight = 3)),
+                # circleOptions = drawCircleOptions(shapeOptions = drawShapeOptions(fillOpacity = 0
+                #                                                                   ,color = 'white'
+                #                                                                   ,weight = 3)),
+                editOptions = editToolbarOptions(edit = FALSE, selectedPathOptions = selectedPathOptions()))
+        
+    })
+
 }
 
 # Run the application 
-shinyApp(ui = ui, server = server)
+shinyApp(ui = ui, server = server) 
