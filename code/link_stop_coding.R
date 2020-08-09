@@ -19,17 +19,24 @@
 #     follow up: can definitely be done with Kenney's route patterns. But there are 1,500 patterns. Think about how to collapse down to most common? cross ref with gtfs
 #     alternative - GTFS contains a shape_id that is different for different trips of a route
 
-require(tidyverse) ; require(tidytransit)
+require(tidyverse) ; require(tidytransit) ; library(tidyr)
 require(leaflet)
 require(lwgeom)
 library(sf)
 library(httr)
 library(geojsonsf)
-
+library(purrr)
 
 source("code/segmentation_code.R")
 # step 2: pull in coded links from AGO 
-gis_dat <- pull_arcgis_dat()
+#gis_dat <- pull_arcgis_dat()
+
+gis_dat <- read_sf("./data/links_v2/DVRPC_Existing_Condition_Level_of_Traffic_Stress.shp") %>%
+  select(1:4)
+# 
+# leaflet() %>% 
+#   addProviderTiles(providers$CartoDB.Positron) %>% 
+#   addPolylines(data = gis_dat, color = "Blue", weight = 1, highlightOptions = highlightOptions(color = "green", weight = 4, bringToFront = TRUE))
 
 # import Spring 2019 GTFS
 spring_2019_gtfs <- tidytransit::read_gtfs("./data/spring_2019_gtfs.zip")
@@ -63,8 +70,8 @@ num_shapes <- length(route_shape_frequency$shape_id)
 
 # another option: figure out a way to make sure all stops are covered by at least 1 route pattern - probably the most efficient way
 #     start by building out a trip x stop x timepoint x shape data base
-spring_2019_gtfs$stop_times # there are 2.1million individual stop_times in a day at SEPTA
-trip_stop_time_shape <- spring_2019_gtfs$stop_times %>% left_join(new_route_df)
+#spring_2019_gtfs$stop_times # there are 2.1million individual stop_times in a day at SEPTA
+#trip_stop_time_shape <- spring_2019_gtfs$stop_times %>% left_join(new_route_df)
 #     now we don't really need to know about time, we want to figure out how to get every stop covered by the least number of shapes
 
 # # try 1: coalesce down to each stop, with a list of each unique shape - interesting question here whether to group by direction or not...
@@ -77,18 +84,18 @@ trip_stop_time_shape <- spring_2019_gtfs$stop_times %>% left_join(new_route_df)
 # test <- as.matrix(a, b)
 
 # try 3: incorporate routes
+#start by building out a trip x stop x timepoint x shape data base
+spring_2019_gtfs$stop_times # there are 2.1million individual stop_times in a day at SEPTA
+trip_stop_time_shape <- spring_2019_gtfs$stop_times %>% left_join(new_route_df)
+
 stop_route_shapes <- trip_stop_time_shape %>%  group_by(route_id, stop_id) %>% summarise(shape_list = (unique(shape_id))) %>%  arrange(route_id, stop_id)
 route_shape_stops <- trip_stop_time_shape %>%  group_by(route_id, direction_id, shape_id) %>% summarise(stop_list = list(unique(stop_id))) %>%  arrange(route_id, shape_id) %>% 
   mutate(list_length = map(stop_list, length))
 
-all_route_stops <- trip_stop_time_shape %>% group_by(route_id, direction_id) %>% summarise(stop_list = list(unique(stop_id))) %>% 
-  mutate(list_length = map(stop_list, length))
+# all_route_stops <- trip_stop_time_shape %>% group_by(route_id, direction_id) %>% summarise(stop_list = list(unique(stop_id))) %>% 
+#   mutate(list_length = map(stop_list, length))
 
 # will need to pull just the stops used by that trip/shape to do the analysis
-
-# pull link data from arcgis online
-#source("code/segmentation_code.R")
-#gis_dat <- pull_arcgis_dat()
 
 
 #### VISUAL EXPLORATION ####
@@ -171,10 +178,9 @@ map_routeline_stop_pairs <- function(route = 42, route_data = route_sf, stop_dat
 
 
 #### MAIN FUNCTIONS ####
-# NEED TO REWRITE TO TAKE IN A SHAPE SF INSTEAD OF A ROUTE SF
 
-test_shape <- route_shape_stops[1, ] %>%  left_join(spring_2019_gtfs$shapes %>% tidytransit::shapes_as_sf())
-shape_dat = test_shape
+# test_shape <- route_shape_stops[1, ] %>%  left_join(spring_2019_gtfs$shapes %>% tidytransit::shapes_as_sf())
+# shape_dat = test_shape
 
 # method to break down a route into smaller lines:
 fix_shape_lines <- function(shape_dat = test_shape, line_length = 50) {
@@ -226,7 +232,7 @@ fix_shape_lines <- function(shape_dat = test_shape, line_length = 50) {
   return(fixed_lines)
 }
 
-test_shape_fix <- fix_shape_lines(test_shape, line_length = 50)
+#test_shape_fix <- fix_shape_lines(test_shape, line_length = 50)
 
 # DEPRECATED - NO LONGER USING ROUTE LINES
 # method to break down a route into smaller lines:
@@ -295,11 +301,11 @@ fix_and_map <- function(shape_dat) {
 
 #### SUMMARY OF STEP 1: SEGMENT THE UNIQUE SHAPE ####
 # set a test shape - pull one from the route_shape_stops 
-test_shape <- route_shape_stops[1, ] %>%  left_join(spring_2019_gtfs$shapes %>% tidytransit::shapes_as_sf())
+#test_shape <- route_shape_stops[1, ] %>%  left_join(spring_2019_gtfs$shapes %>% tidytransit::shapes_as_sf())
 # fix that shape
-test_shape_fix <- fix_shape_lines(test_shape, line_length = 50)
+#test_shape_fix <- fix_shape_lines(test_shape, line_length = 50)
 # visualize that shape
-fix_and_map(test_shape)
+#fix_and_map(test_shape)
 
 #### STEP 2: PAIR THE STOPS TO THE CLOSEST SHAPE LINE ####
 
@@ -384,9 +390,13 @@ map_stop_shape_pairs <- function(fixed_shape, stop_data = spring_2019_gtfs$stops
     addCircles(data = selected_stops_sf, fill = "Grey", radius = 2)
   
 }
-#map_stop_relations(route_data = route_sf, stop_data = stop_sf, route_number = 12)]
+
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolylines(data = gis_dat, color = "Blue", weight = 1, highlightOptions = highlightOptions(color = "green", weight = 4, bringToFront = TRUE))
 
 #### STEP 2 SUMMARY ####
+test_shape <- route_shape_stops[1, ] %>%  left_join(spring_2019_gtfs$shapes %>% tidytransit::shapes_as_sf())
 # Run fix_shape_lines to segment the shape into many pieces
 fixed_shape <- fix_shape_lines(test_shape, line_length = 50)
 # create the stop data frame
@@ -463,7 +473,7 @@ pair_stops_to_links <- function(fixed_shape, stop_shape_pairing = test_stop_shap
   # Then buffer the links, saving time by only buffering those w/in 1500m of the route line
   
   # Step A: start by finding the links near the shape line
-  nearby <- gis_dat %>% st_is_within_distance(fixed_shape, dist = 8) # takes awhile 
+  nearby <- gis_dat %>% st_is_within_distance(fixed_shape, dist = 1) # takes awhile 
   nears <- (lengths(nearby) > 0) %>% as.tibble()
   near_to_line <- gis_dat %>% bind_cols(nears) %>%  filter(value == TRUE)
   
@@ -673,7 +683,7 @@ map_matched_stops_links(test_full)
 #  mutate(match_df <- map(., fully_assign_stops_to_links, spring_2019_gtfs$stops, 
 #                            gis_dat = gis_dat, line_length = 50))
 
-shape_id_list <- unique((as.numeric(route_shape_stops$shape_id)))
+#shape_id_list <- unique((as.numeric(route_shape_stops$shape_id)))
 
 # Basic function to call functions across a data frame of shapes
 shape_data <- route_shape_stops %>%  left_join(spring_2019_gtfs$shapes %>% tidytransit::shapes_as_sf())
@@ -711,37 +721,193 @@ run_shape <- function(shape, stop_data = spring_2019_gtfs$stops, gis_data = gis_
   return(output)
 }
 
+y <- run_shape(shape_data[787, ])
+
 # functiont to run for a route
-run_route <- function(route_num, shape_data) {
-  dat <- shape_data %>% filter(route_id == route_num) %>% mutate(id = shape_id) %>%  group_by(id) %>% nest() %>% ungroup()
+run_route_direction <- function(route_num, direction = 0, shape_data) {
+  print(route_num)
+  print(direction)
+  #dat <- shape_data %>% filter(route_id == 79) %>% mutate(id = shape_id, d_id = direction_id) %>%  group_by(id, d_id) %>% arrange(direction_id) %>% nest() %>% ungroup()
   
-  x <- dat %>% mutate(shape_dat = map(.$data, run_shape))
+  # gives a df of a route and a direction, arrange by the number of stops
+  dat <- shape_data %>% filter(route_id == route_num) %>% group_by(shape_id) %>% filter(direction_id == direction) %>% 
+    mutate(list_length = unlist(list_length)) %>%
+    arrange(-list_length) %>%
+    rowwise() %>%
+    mutate(diff = list(setdiff(stop_list, first(.$stop_list)))) %>% # figures out if there is a difference between the first one and the following
+    ungroup() %>% 
+    filter(length(unlist(diff)) > 0 | shape_id == .$shape_id[1]) %>% 
+    mutate(id = shape_id, d_id = direction_id) %>%  
+    group_by(id, d_id) %>%
+    nest() %>% 
+    rename(shape_info = data)
+
+  #dat %>% unnest(cols = c(shape_info), names_repair = "minimal")
   
+  x <- dat %>% rowwise() %>% mutate(shape_dat = run_shape(shape_info))
+
   return(x)
 }
 
-route_42 <- run_route(shape_data = shape_data, route_num = 42)
+route_42_0 <- run_route_direction(shape_data = shape_data, route_num = 42, direction = 0) # works for city routes
+route_79_1 <- run_route_direction(shape_data = shape_data, route_num = 79, direction = 1)
+
+
+
+#route_101 <- run_route(shape = shape_data, route_num = 101) # does not work for suburban routes until larger link set is imported
+
+# figure out how to break down routes more efficiently
+r <- spring_2019_gtfs$routes %>% select(route_id) %>% 
+  filter(route_id == 2 | route_id == 3) %>% 
+  mutate(direction = list(c(0, 1))) %>%
+  unnest_longer(col = direction) %>%
+  rowwise() %>%
+  mutate(route_data = list(run_route_direction(route_id, direction, shape_data)))
+
 
 # run for all routes
+city_route_list_a <- c(1, 2, 3, 4, 5, 6, 7, 8, 12, 14, 16, 17, 18, 19, 20)
+
+city_route_list_b <- c(21, 23, 24, 25, 26, 28, 29, 30, 31, 32, 33, 37, 38, 39, 40, 42, 43, 45)
+
+city_route_list_c <- c(46, 47, 48, 50, 52, 53, 54, 56, 58, 59, 60, 61, 64, 65, 66, 67, 68, 70, 73, 75, 79, 84, 88, 89)
+
+city_route_list_d <- c("G", "H", "J", "K", "L", "R", "XH", "BLVDDIR")
+
+city_route_list_e <- c("G", "H", "J", "K", "L", "R", "XH", "BLVDDIR")
+
+city_route_list <- c(1, 2, 3, 4, 5, 6, 7, 8, 12, 14, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 28, 29, 30, 31, 32, 33, 37, 38, 39, 
+  40, 42, 43, 45, 46, 47, 48, 50, 52, 53, 54, 56, 58, 59, 60, 61, 64, 65, 66, 67, 68, 70, 73, 75, 79, 84, 88,
+  89, 108, "G", "H", "J", "K", "L", "R", "XH", "BLVDDIR", "LUCYGO", "LUCYGR")
+
+trolley_route_list <- c(10, 11, 13, 15, 34, 36)
 
 # df of all routes
-f <- function()
+city_routes_a <- spring_2019_gtfs$routes %>% select(route_id) %>% 
+  filter(route_id %in% city_route_list_a) %>% 
+  mutate(direction = list(c(0, 1))) %>%
+  unnest_longer(col = direction) %>%
+  rowwise() %>%
+  mutate(route_data = list(run_route_direction(route_id, direction, shape_data)))
 
-routes <- spring_2019_gtfs$routes %>% select(route_id) %>% 
-  mutate(route_data = map(.$route_id, run_route, shape_data))
+city_routes_b <- spring_2019_gtfs$routes %>% select(route_id) %>% 
+  filter(route_id %in% city_route_list_b) %>% 
+  mutate(direction = list(c(0, 1))) %>%
+  unnest_longer(col = direction) %>%
+  rowwise() %>%
+  mutate(route_data = list(run_route_direction(route_id, direction, shape_data)))
 
-dat <- routes[1, ]
-test <- dat %>% mutate(route_data = map(.$route_id, run_route, shape_data))
+city_routes_c <- spring_2019_gtfs$routes %>% select(route_id) %>% 
+  filter(route_id %in% city_route_list_c) %>% 
+  mutate(direction = list(c(0, 1))) %>%
+  unnest_longer(col = direction) %>%
+  rowwise() %>%
+  mutate(route_data = list(run_route_direction(route_id, direction, shape_data)))
+
+city_routes_d <- spring_2019_gtfs$routes %>% select(route_id) %>% 
+  filter(route_id %in% city_route_list_d) %>% 
+  mutate(direction = list(c(0, 1))) %>%
+  unnest_longer(col = direction) %>%
+  rowwise() %>%
+  mutate(route_data = list(run_route_direction(route_id, direction, shape_data)))
+
+city_lucy <- spring_2019_gtfs$routes %>% select(route_id) %>%
+  filter(route_id %in% list("LUCYGO", "LUCYGR"))  %>% 
+  mutate(direction = list(c(0))) %>%
+  unnest_longer(col = direction) %>%
+  rowwise() %>%
+  mutate(route_data = list(run_route_direction(route_id, direction, shape_data)))
+
+city_trolleys <- spring_2019_gtfs$routes %>% select(route_id) %>% 
+  filter(route_id %in% trolley_route_list) %>% 
+  mutate(direction = list(c(0, 1))) %>%
+  unnest_longer(col = direction) %>%
+  rowwise() %>%
+  mutate(route_data = list(run_route_direction(route_id, direction, shape_data)))
+
+# bind all of the city routes together
+city_routes <- city_routes_a %>% bind_rows(city_routes_b) %>% 
+  bind_rows(city_routes_c) %>%
+  bind_rows(city_routes_d) %>%
+  bind_rows(city_trolleys)
+
+# unnest to the stop level I guess
+
+test4 <- city_routes %>% 
+  filter(route_id == 1 & direction == 0) %>% 
+  rowwise() %>% 
+  mutate(dat = list(bind_rows(.$route_data[[1]]$shape_dat$data)))
+test4$dat
+
+test5 <- city_routes %>% 
+  filter(route_id == 1 & direction == 1) %>% 
+  rowwise() %>% 
+  mutate(dat = list(bind_rows(first(.$route_data)$shape_dat$data))) %>%
+  select(dat) %>%
+  first() %>%
+  first() %>%
+  group_by(stop_id) %>% summarise(link_id = first(closest_link_id))
+
+find_stop_links <- function(r, d){
+  output <- city_routes %>% 
+    filter(route_id == 1 & direction == 0) %>% 
+    rowwise() %>% 
+    mutate(dat = list(bind_rows(first(.$route_data)$shape_dat$data))) %>%
+    select(dat) %>%
+    first() %>%
+    first() %>%
+    group_by(stop_id, closest_link_id)
+  
+  return(output)
+}
+
+(city_routes %>% filter(route_id == 42))$route_data[[1]]$shape_dat$data %>% bind_rows()
+
+stop_links <- city_routes %>%
+  group_by(route_id, direction) %>%
+  summarise(data = find_stop_links(route_id, direction)) %>%
+  group_by(data$stop_id, data$closest_link_id) %>%
+  summarise() %>%
+  unique() %>%
+  rename(stop_id = `data$stop_id`, link_id = `data$closest_link_id`) %>%
+  mutate(stop_id = as.numeric(stop_id))
 
 
+stop_links_sf <- stop_links %>%
+  left_join(stop_sf) %>%
+  ungroup() %>%
+  sf::st_as_sf()
+stop_links_sf
 
-# Now need to simplify and aggregate at the route level
-# Need to figure out how to pick the right shape ids
-test$stop_list
+links <- gis_dat %>% mutate(link_id = row_number() %>% as.character()) %>% dplyr::distinct(fromto, .keep_all = TRUE)
 
-# idea: find all of the stops that need to be covered by a route going in a certain direction
-# then look up those stops in the lists to see which cover them
+link_stops <- stop_links %>% as_data_frame() %>% left_join(links, by = c("link_id" = "FID")) %>% sf::st_as_sf() %>% ungroup()
+link_stops
+
+leaflet(stop_links_sf) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addCircleMarkers(color = "Grey", radius = 4, weight = 5, #layerId = segmentized$route_id,
+               popup = paste0("Link ID: ", stop_links_sf$link_id, " - StopID: ", stop_links_sf$stop_id)
+               #highlightOptions = highlightOptions(color = "green", radius = 4, weight = 5, bringToFront = TRUE)
+  ) %>%
+  addPolylines(data = links, color = "Pink", weight = 4, #layerId = segmentized$route_id,
+               popup = paste0("Link ID: ", links$link_id),
+               highlightOptions = highlightOptions(color = "green", weight = 4, bringToFront = TRUE)
+  )
 
 
+leaflet(test8) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolylines(color = "Pink", weight = 4, #layerId = segmentized$route_id,
+                  popup = paste0("Link ID: ", test8$link_id, " - StopID: ", test8$stop_id),
+                  highlightOptions = highlightOptions(color = "green", weight = 4, bringToFront = TRUE)
+   )
+
+leaflet(links) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolylines(color = "Pink", weight = 4, #layerId = segmentized$route_id,
+               popup = paste0("Link ID: ", links$link_id),#, " - StopID: ", test8$stop_id),
+               highlightOptions = highlightOptions(color = "green", weight = 4, bringToFront = TRUE)
+  )
 
 # Test using method ti "fix" one route and see how accurate it is compared to original DVRPC output
