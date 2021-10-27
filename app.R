@@ -13,25 +13,34 @@
 # - add option to download a nice, well formatted PDF using rmd - need to write report function first
 
 library(shiny); library(shinydashboard)
-library(leaflet) ; library(leaflet.extras)
+library(leaflet)
+library(leaflet.mapboxgl) ; library(leaflet.extras)
 library(sf) ; library(sp)
 library(htmltools)
 library(tidyverse)
 library(rgeos)
 library(reactable)
 library(xlsx)
+library(tinytex)
+library(htmlwidgets)
+library(mapview)
 
 source("./code/segmentation_code.R")
 
 # Nice to have: query the traffic count dataset and return a chart of traffic counts in the area, akin to DVRPC's portal
 # https://dvrpc-dvrpcgis.opendata.arcgis.com/datasets/dvrpc-traffic-counts
 
-
-create_links <- function(loaded_links) {
-    links <- loaded_links %>% group_by(fromto) %>%  summarise(stop_list = list(unique(stop_id))) %>% 
+create_links <- function(links_with_stops) {
+    stops <- read_stops()
+    
+    gis_dat <- pull_arcgis_dat()
+    links_with_stops <- gis_dat %>%
+        load_coded_links(stops)
+    
+    links <- links_with_stops %>% group_by(fromto) %>%  summarise(stop_list = list(unique(stop_id))) %>% 
         mutate(secondLocationID = paste(as.character(fromto), "_selectedLayer", sep="")) %>% 
         rowwise() %>% 
-        mutate(stop_str = paste(unlist(stop_list), collapse = ", "))
+        mutate(stop_str = paste(unlist(stop_list), collapse = ","))
     
     st_write(links, "./data/links_with_stops.geojson", driver = "GeoJSON", delete_dsn = TRUE)
 }
@@ -48,7 +57,12 @@ coordinates = link_stop_data$geometry
 file_output <- NULL
     
 # import APC data
-apc_data <- read.csv("./data/combined_apc_dataset.csv") %>%  mutate(stop_id = paste0(agency_id, stop_id))
+apc_data <- read.csv("./data/combined_apc_dataset.csv") %>%  
+    mutate(stop_id = paste0(agency_id, stop_id)) %>% 
+    mutate(dwell_time = case_when(
+        agency_id == "NJT" ~ dwell_time * 60,
+        TRUE ~ dwell_time
+    ))
 
 create_stops <- function() {
     stop_data <- st_read("./data/spring_2019_shp/4f34c6b9-ba39-4c63-9f54-8d44c7320d5c202047-1-1yyct9k.fqq8.shp") %>% 
@@ -62,10 +76,23 @@ create_stops <- function() {
     
     st_write(stop_data, "./data/stops_ridership.geojson", driver = "GeoJSON", delete_dsn = TRUE)
 }
+
+create_routes <- function() {
+    route_data <- st_read("./data/spring_2019_routes_shp/0f39f3da-6279-4d49-a7d0-f95038292bad202047-1-1nvimo9.mpsv.shp") %>% 
+        mutate_if(is.factor, as.character)
+    
+    st_write(route_data, "./data/routes_ridership.geojson", driver = "GeoJSON", delete_dsn = TRUE)
+}
+
+
 #create_stops()
 stops_w_ridership <- st_read("./data/stops_ridership.geojson") %>% 
     mutate_if(is.factor, as.character) %>% 
-    mutate(route_list = as.list(strsplit(as.character(route_str), ","))) 
+    mutate(route_list = as.list(strsplit(as.character(route_str), ",")))
+
+#create_routes()
+routes_w_ridership <- st_read("./data/routes_ridership.geojson") %>% 
+    mutate_if(is.factor, as.character)
 
 ui <- dashboardPage(skin = "green",
     dashboardHeader(title = "Transit First  Dashboard"),
@@ -84,8 +111,11 @@ ui <- dashboardPage(skin = "green",
                        leafletOutput("link_map", height = 500))
                    ),
             fluidRow(
-                column(width = 8, 
-                       box( 
+                column(width = 12, 
+                       box(title = "Step 1: Generate Corridor Analytics",
+                           p(class = "text-muted",
+                             "First use the map's drawing tools to select your chosen corridor segments."
+                           ),
                            actionButton("calculate", "Calculate Analytics"),
                            p(class = "text-muted",
                              br(),
@@ -94,15 +124,25 @@ ui <- dashboardPage(skin = "green",
                              "Caution: this may take awhile."
                             )
                          ),
-                       box(downloadButton("downloadData", "Download"),
+                       box(title = "Step 2 (Optional): Download Results",
+                           downloadButton("downloadData", "Download Data"),
                            p(class = "text-muted",
                              br(),
                              "Download Excel file of analytic tables."
-                           ))
+                           ),
+                           downloadButton("report", "Download Report"),
+                           p(class = "text-muted",
+                             br(),
+                             "Download PDF Report on Corridor."
+                           )
+                       )
+                       
                 ),
                 column(width = 12, 
                        box(title = "Daily Analytics", solidHeader = TRUE, status = "primary",
                            tableOutput("analytics_table"), width = NULL),
+                       box(title = "Daily Analytics by Route", solidHeader = TRUE, status = "primary",
+                           tableOutput("analytics_route_table"), width = NULL),
                        box(title = "Analytics by Timeframe", solidHeader = TRUE,  status = "primary",
                            tableOutput("analyticsB_table"), width = NULL),
                        box(title = "Hourly Analytics", solidHeader = TRUE,  status = "primary",
@@ -393,31 +433,45 @@ server <- function(input, output, session) {
         #print(data)
         
         # get the list of stops associated with the data
+        #test: stop_list <- list("SEPTA14084", "SEPTA14085", "SEPTA14086", "SEPTA14088", "SEPTA14089", "SEPTA131", "SEPTA130", "SEPTA14887", "SEPTA14886", "SEPTA14885", "SEPTA14885", "SEPTA14884", "SEPTA14883", "SEPTA14882", "SEPTA18515", "SEPTA14880", "SEPTA20973", "SEPTA20972", "SEPTA20974")%>% unlist() %>% as.character() %>% unique()
+        # stop_list <- list("SEPTA359", "SEPTA14913" ,"SEPTA10329",  "SEPTA10331",  "SEPTA10338", "SEPTA30080", "SEPTA32144", "NJT27949","NJT32611","SEPTA10341","SEPTA18457", "SEPTA21531", "SEPTA31178" ,"NJT27950","NJT32610" ,  "SEPTA10255","SEPTA10258" ,"SEPTA17833" ,"NJT27952" ,  "NJT32609","SEPTA10257" , "SEPTA10340", "SEPTA30081", "NJT27951","SEPTA10258","SEPTA17833" , "NJT27952","NJT32609","SEPTA10257" , "SEPTA10340" ,"SEPTA30081" ," NJT27951"  )%>% unlist() %>% as.character() %>% unique()
+        #  
         stop_list <- data$stop_list %>% unlist() %>% as.character() %>% unique()
-        #print(stop_list)
+        print(stop_list)
         
-        trip_dat <- suppressWarnings(find_trip_dat_v2(apc_data, stop_list))
+        trip_dat <- suppressWarnings(find_trip_dat_v2(apc_data, stop_list)) %>% 
+            rowwise() %>% 
+            mutate(dwell_est = case_when(
+                        dwell_sum >=0 ~ dwell_sum,
+                        TRUE ~ as.duration(ons_offs * 4.8)),
+                   run_minus_dwell = case_when(
+                       dwell_est > 0 ~ run - dwell_est,
+                       TRUE ~ run),
+                   adj_speed = distance_traveled / (as.numeric(run_minus_dwell) / 60 / 60)
+            ) %>% 
+            mutate(adj_speed = case_when(
+                adj_speed >0 & adj_speed != Inf & adj_speed < 50 ~ adj_speed
+            ))
+        
+    
         #print(trip_dat)
         
         analytics <- analyze_segment(trip_dat)
-        print(analytics)
+        route_analytics <- analyze_segment_route(trip_dat)
+        binned_analytics <- suppressWarnings(analyze_segment_hourbin(trip_dat))
+        hourly_analytics <- suppressWarnings(analyze_segment_hourly(trip_dat))
+        hourly_route_analytics <- suppressWarnings(analyze_segment_route_hourly(trip_dat))
+        hourly_route_direction_analytics <- suppressWarnings(analyze_segment_route_direction_hourly(trip_dat))
+        
         
         output$analytics_table <- renderTable(analytics)
-        
-        binned_analytics <- suppressWarnings(analyze_segment_hourbin(trip_dat))
-        print(binned_analytics)
-        
+        output$analytics_route_table <- renderTable(route_analytics)
         output$analyticsB_table <- renderTable(binned_analytics)
-        
-        hourly_analytics <- suppressWarnings(analyze_segment_hourly(trip_dat))
-        
         output$analyticsC_table <- renderReactable({
             reactable(hourly_analytics, columns = list(
                 trip_hour = colDef(filterable = TRUE))
             )
         })
-        
-        hourly_route_analytics <- suppressWarnings(analyze_segment_route_hourly(trip_dat))
         
         output$analyticsD_table <- renderReactable({
             reactable(hourly_route_analytics, groupBy = "trip_hour", 
@@ -434,9 +488,7 @@ server <- function(input, output, session) {
             )
         })
         
-        hourly_route_direction_analytics <- suppressWarnings(analyze_segment_route_direction_hourly(trip_dat))
-        #print(hourly_route_direction_analytics)
-        
+
         output$analyticsE_table <- renderReactable({
             reactable(hourly_route_direction_analytics, groupBy = "trip_hour", 
                       columns = list(
@@ -450,7 +502,15 @@ server <- function(input, output, session) {
                           avg_speed_90_pct = colDef(filterable = TRUE)
                       )
             )
-        }) 
+        })
+        
+        stop_trip_dat <- find_stop_dat(apc_data, stop_list)
+        
+        daily_stop_analytics <- analyze_stops_daily(stop_trip_dat)
+        stop_route_analytics <- analyze_stops_routes_daily(stop_trip_dat)
+        stop_route_binned_analytics <- suppressWarnings(analyze_stops_routes_hourbin(stop_trip_dat))
+        stop_route_hourly_analytics <- suppressWarnings(analyze_stops_routes_hourly(stop_trip_dat))
+        
         
         output$downloadData <- downloadHandler(
             filename = function() {
@@ -474,35 +534,84 @@ server <- function(input, output, session) {
                 sheet5 = createSheet(wb, "hourly_route_direction_analytics")
                 addDataFrame(as.data.frame(hourly_route_direction_analytics), sheet=sheet5, startColumn=1, row.names=FALSE)
                 
+                sheet6 = createSheet(wb, "route_analytics")
+                addDataFrame(as.data.frame(route_analytics), sheet=sheet6, startColumn=1, row.names=FALSE)
+                
+                sheet7 = createSheet(wb, "daily_stop_analytics")
+                addDataFrame(as.data.frame(daily_stop_analytics), sheet=sheet7, startColumn=1, row.names=FALSE)
+                
+                sheet8 = createSheet(wb, "stop_route_analytics")
+                addDataFrame(as.data.frame(stop_route_analytics), sheet=sheet8, startColumn=1, row.names=FALSE)
+                
+                sheet9= createSheet(wb, "stop_route_binned_analytics")
+                addDataFrame(as.data.frame(stop_route_binned_analytics), sheet=sheet9, startColumn=1, row.names=FALSE)
+                
+                sheet10 = createSheet(wb, "stop_route_hourly_analytics")
+                addDataFrame(as.data.frame(stop_route_hourly_analytics), sheet=sheet10, startColumn=1, row.names=FALSE)
+                
                 saveWorkbook(wb, file)
-                #write.csv(hourly_analytics, file, row.names = FALSE)
-                # write.xlsx(analytics, file, sheetName = "analytics")
-                # write.xlsx(binned_analytics, file, sheetName = "binned_analytics")
-                # write.xlsx(hourly_analytics, file, sheetName = "hourly_analytics")
-                # write.xlsx(hourly_route_analytics, file, sheetName = "hourly_route_analytics")
+                
             }
         )
         #file_output <- hourly_analytics
+        
+        output$report <- downloadHandler(
+            # For PDF output, change this to "report.pdf"
+            filename = "report.html",
+            content = function(file) {
+                # Copy the report file to a temporary directory before processing it, in
+                # case we don't have write permissions to the current working dir (which
+                # can happen when deployed).
+                
+                tempReport <- file.path(tempdir(), "phl_corridor_report.Rmd")
+                file.copy("phl_corridor_report.Rmd", tempReport, overwrite = TRUE)
+                
+                # Set up parameters to pass to Rmd document
+                params <- list(apc_trip_data = trip_dat)
+                
+                # Knit the document, passing in the `params` list, and eval it in a
+                # child of the global environment (this isolates the code in the document
+                # from the code in this app).
+                rmarkdown::render(tempReport, output_file = file,
+                                  params = params,
+                                  envir = new.env(parent = globalenv())
+                )
+            }
+        )
     })
+    
+    
     
     output$stop_map <- renderLeaflet({
         #print(segment_data$FINAL_ID %>%  head())
+        pal <- colorFactor(c("#666666", "#4377bc", "#49B048", "#f78c1f", "#a7268f"), 
+                           domain = c("grey", "blue", "green", "orange", "purple"))
         
-        pal <- colorFactor(c("#666666", "#4377bc", "#49B048"), domain = c("Bus", "Highspeed", "Trolley"))
+        stop_dat <- stops_w_ridership %>%
+            mutate(color = case_when(
+                Mode == "Bus" ~ "#666666",
+                Mode == "Trolley" ~ "#49B048",
+                Mode == "Highspeed" & route_list == "BSL" ~ "#f78c1f",
+                Mode == "Highspeed" & route_list == "MFL"  ~ "#4377bc",
+                Mode == "Highspeed" & route_list == "NHSL"  ~ "#a7268f",
+                TRUE ~ "grey"
+            ))
         
-        leaflet(stops_w_ridership) %>% 
+        
+        
+        leaflet(stop_dat) %>% 
             setView(zoom = 12, lat = 40.0, lng = -75.166) %>% 
-            addProviderTiles(providers$CartoDB.Positron) %>% 
-            addCircleMarkers(data = stops_w_ridership, layerId = stops_w_ridership$Stop_ID,
-                             radius = log(stops_w_ridership$daily_boards) * 1.3,
-                             color = ~pal(stops_w_ridership$Mode), 
+            addMapboxGL(style = "mapbox://styles/mapbox/streets-v9") %>%
+            addCircleMarkers(data = stop_dat, layerId = stop_dat$Stop_ID,
+                             radius = log(stop_dat$daily_boards) * 1.3,
+                             color = (stop_dat$color), 
                              stroke = FALSE,
                              fillOpacity = 0.5,
-                             popup = paste0("StopID: ", stops_w_ridership$Stop_ID, 
-                                            "<br>", stops_w_ridership$Stop_Name, 
-                                            "<br>", "Routes: ", stops_w_ridership$route_str, 
-                                            "<br>", "Daily Boards: ", stops_w_ridership$daily_boards,
-                                            "<br>", "Daily Leaves: ", stops_w_ridership$daily_leaves)
+                             popup = paste0("StopID: ", stop_dat$Stop_ID, 
+                                            "<br>", stop_dat$Stop_Name, 
+                                            "<br>", "Routes: ", stop_dat$route_str, 
+                                            "<br>", "Daily Boards: ", stop_dat$daily_boards,
+                                            "<br>", "Daily Leaves: ", stop_dat$daily_leaves)
             ) %>% 
             addDrawToolbar(
                 targetGroup='Selected',
@@ -518,6 +627,42 @@ server <- function(input, output, session) {
                 #                                                                   ,color = 'white'
                 #                                                                   ,weight = 3)),
                 editOptions = editToolbarOptions(edit = FALSE, selectedPathOptions = selectedPathOptions()))
+        
+    })
+    
+    output$route <- renderLeaflet({
+        #print(segment_data$FINAL_ID %>%  head())
+        pal <- colorFactor(c("#666666", "#4377bc", "#49B048", "#f78c1f", "#a7268f"), 
+                           domain = c("grey", "blue", "green", "orange", "purple"))
+        
+        stop_dat <- stops_w_ridership %>%
+            mutate(color = case_when(
+                Mode == "Bus" ~ "#666666",
+                Mode == "Trolley" ~ "#49B048",
+                Mode == "Highspeed" & route_list == "BSL" ~ "#f78c1f",
+                Mode == "Highspeed" & route_list == "MFL"  ~ "#4377bc",
+                Mode == "Highspeed" & route_list == "NHSL"  ~ "#a7268f",
+                TRUE ~ "grey"
+            ))
+        
+        
+        route_dat <- routes_w_ridership %>%
+            mutate(color = case_when(
+                Route %in% c(10, 15, 13, 34, 36) ~ "#49B048",
+                Route %in% c("MFL") ~ "#4377bc",
+                Route %in% c("BSL") ~ "#f78c1f",
+                Route %in% c("NHSL") ~ "#a7268f",
+                TRUE ~ "#666666"
+            ))
+        
+        
+        leaflet(route_dat) %>% 
+            setView(zoom = 12, lat = 40.0, lng = -75.166) %>% 
+            addMapboxGL(style = "mapbox://styles/mapbox/streets-v9") %>%
+            addPolylines(data = route_dat,
+                         color = route_dat$color,
+                         popup = paste0("Route: ", route_dat$Route, 
+                                        "<br>", route_dat$Route_Name))
         
     })
 

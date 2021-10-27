@@ -3,6 +3,8 @@ library(sf)  ;  library(htmltools) ; library(knitr)  ; library(feather)  ;  libr
 library(dtplyr)  ;  library(tidyfast)  ;  library(pryr) ; library(readxl)
 library(editData)
 
+library(lubridate)
+
 source("code/segmentation_code.R")
 
 #library(googledrive)
@@ -97,6 +99,7 @@ segments_with_apc_route_analytics <- final_segments %>% filter(!duplicated(FINAL
 st_write(segments_with_apc_analytics, "./data/segments_analyzed.geojson", driver = "GeoJSON", delete_dsn = TRUE)
 st_write(segments_with_apc_route_analytics, "./data/segments_routes_analyzed.geojson", driver = "GeoJSON", delete_dsn = TRUE)
 
+segments_with_apc_analytics <- st_read("./data/segments_analyzed.geojson")
 
 # Step 6: Produce Scoring:
 
@@ -374,3 +377,229 @@ dvrpc_segments_with_apc_route_analytics <- final_DVRPC_segments %>%
   add_route_analytics(gis_dat)
 
 st_write(dvrpc_segments_with_apc_analytics, "./data/dvrpc_output.geojson", driver = "GeoJSON", delete_dsn = TRUE)
+
+
+# generate stop size standards - 
+stop_sizes <- generate_queue_sizes(apc_data)
+
+county_shp <- sf::read_sf("./data/PACounty2020_01.geojson") %>% 
+  select(COUNTY_NAM)
+
+stop_sizes_city <- stop_sizes %>% 
+  filter(is.na(stop_lat) == FALSE) %>% 
+  sf::st_as_sf(coords = c("stop_lon", "stop_lat"), crs = 4326) %>% 
+  sf::st_join(county_shp) %>% 
+  filter(COUNTY_NAM == "PHILADELPHIA")
+
+plot_dat <- stop_sizes_city %>% 
+  mutate(PASSENGER_75 = case_when(
+    ons_sum >= 75 ~ TRUE, 
+    ons_sum < 75 ~ FALSE,
+    TRUE ~ FALSE
+  ))
+
+ggplot(plot_dat, aes(x = max_avg_pax)) + geom_histogram() + xlim(0, 25)
+ggplot(plot_dat, aes(x = ons_sum)) + geom_histogram() + xlim(0, 500) + ylim(0, 2100)
+
+ggplot(plot_dat, aes(x = max_avg_pax, fill = PASSENGER_75)) + geom_histogram(binwidth = 1.5) + xlim(0, 15)
+
+castor <- stop_sizes_city %>% filter(grepl('59', routes))
+
+library(hms)
+
+stops_ridership <- apc_data %>% 
+  filter(agency_id == "SEPTA") %>% 
+  group_by(stop_id, stop_lat, stop_lon) %>% 
+  summarise(ons = sum(ons, na.rm = TRUE),
+            offs = sum(offs, nna.rm = TRUE))
+# calculate passenger wait time at a stop
+pax_wait_agg 
+
+test <- apc_data %>% #filter(route_id == 64) %>% 
+  filter(is.na(stop_lat) == FALSE) %>% #remove stops without coords
+  sf::st_as_sf(coords = c("stop_lon", "stop_lat"), crs = 4326) %>% #generate shape object out of lat/lon
+  sf::st_join(county_shp) %>%   # join spatially to county shapefile to ID county location - should move this up...
+  filter(COUNTY_NAM == "PHILADELPHIA") %>% # remove non philly stops
+  mutate(time_stamp = as_hms(as.character(time_stamp))) %>% 
+  group_by(stop_id, direction_id, stop_name) 
+
+test2 <- test %>% 
+  arrange(stop_id, direction_id, time_stamp) %>% 
+  mutate(prev_time_stamp = lag(time_stamp)) %>% 
+  mutate(headway_secs = round((time_stamp - prev_time_stamp), 2)) %>% 
+  filter(headway_secs < 3600) %>%  # filter out headways over 1 hour
+  mutate(agg_wait = ons * (headway_secs / 2)) %>% 
+  mutate(ons_over_2 = case_when(
+    ons >= 2 ~ TRUE,
+    ons < 2 ~ FALSE
+  ))
+
+test3 <- test2 %>% 
+  group_by(stop_id, stop_name, ons_over_2) %>% 
+  summarise(daily_pax_wait = round(sum(agg_wait)),
+            avg_ons = mean(ons, na.rm = TRUE),
+            daily_ons = sum(ons),
+            daily_trips = n()) %>% 
+  arrange(-daily_pax_wait)
+
+test4 <- test3 %>% 
+  filter(daily_ons > 50) %>% 
+  as.data.frame() %>% 
+  select(stop_id, stop_name, ons_over_2, daily_trips) %>% 
+  spread(ons_over_2, daily_trips) %>% 
+  mutate(over_2 = replace_na(`TRUE`, 0),
+         under_2 = replace_na(`FALSE`, 0),
+         total = over_2 + under_2,
+         pct_over_2 = over_2 / total) %>% 
+  left_join(stops_ridership)
+
+test5 <- test4 %>% 
+  filter(pct_over_2 <= 0.1)
+
+test6 <- test4 %>% 
+  filter(pct_over_2 > 0.1)
+
+shelter_data <- read.csv("./data/shelter_data.csv") %>% 
+  mutate(stop_id = paste0("SEPTA", as.character(Stop.ID))) %>% 
+  select(stop_id, Project.Planning)
+
+microshelters <- test5 %>% 
+  left_join(shelter_data, by = c("stop_id" = "stop_id")) %>% 
+  filter(is.na(Project.Planning))
+
+write_csv(microshelters, "microshelters.csv")
+
+ggplot(pax_wait_agg, aes(x = daily_pax_wait)) + geom_histogram() + xlim(0, 250000) + ylim(0, 3000)
+
+mean_wait = median(pax_wait_agg$daily_pax_wait)
+
+pax_wait_agg <- pax_wait_agg %>% 
+  mutate(daily_pax_wait = as.numeric(daily_pax_wait)) %>% 
+  mutate(adj_wait = case_when(
+    daily_pax_wait == 0 ~ 1,
+    TRUE ~ daily_pax_wait
+  )) %>% 
+  #ungroup() %>% 
+  mutate(adj_wait_hours = adj_wait / 60 / 60) %>% 
+  mutate(wait_plus =  adj_wait / as.numeric(mean_wait) * 100) %>% 
+  ungroup() %>% 
+  mutate(wait_pct = round(percent_rank(adj_wait), 3)) %>% 
+  mutate(ons_pct = round(percent_rank(daily_ons), 3)) %>% 
+  mutate(diff = wait_pct - ons_pct) %>% 
+  mutate(target = case_when(
+    daily_ons >= 100 & wait_pct >= 0.75 ~ "already_targeted",
+    daily_ons >= 100 & wait_pct <= 0.75 ~ "reconsider", 
+    daily_ons > 75 & daily_ons < 100 & wait_pct >= 0.75 ~ "new_target",
+    TRUE ~ "no_shelter_needed"
+  ))
+
+ggplot(pax_wait_agg, aes(x = wait_plus)) + geom_histogram()
+ggplot(pax_wait_agg, aes(x = wait_plus)) + geom_histogram() + xlim(-0, 100)
+
+ggplot(pax_wait_agg, aes(x = wait_pct, y = log(daily_ons), colour = target)) + geom_point()
+
+
+leaflet(pax_wait_agg) %>% 
+  addTiles() %>% 
+  addCircleMarkers()
+
+#### ANALYZING STOP CONTROLED CORRIDORS
+
+stops_ixn <- readxl::read_excel('./data/intersection_stops.xlsx') %>% 
+  mutate(stop_id = paste("SEPTA", Stop_ID, sep = "")) %>% 
+  mutate(route_id = Route, 
+         led_status = LED_STATUS) %>% 
+  mutate(control = replace_na(STOPTYPE, "None")) %>% 
+  select(stop_id, route_id, control, led_status)
+
+stops_route_ridership <- apc_data %>% 
+  filter(agency_id == "SEPTA") %>% 
+  group_by(stop_id, route_id, stop_lat, stop_lon) %>% 
+  summarise(ons = sum(ons, na.rm = TRUE),
+            offs = sum(offs, nna.rm = TRUE))
+
+intersection_stops <- stops_ixn %>% 
+  left_join(stops_route_ridership, by = c("stop_id", "route_id")) %>% 
+  group_by(stop_id, control, led_status) %>% 
+  summarise(ons = sum(ons, na.rm = TRUE), offs = sum(offs, na.rm = TRUE))
+
+segment_data <- st_read("./data/scored_segments.geojson")
+
+segment_stop_data <- segment_data %>% 
+  mutate(FINAL_ID = as.character(FINAL_ID)) %>% 
+  mutate(stop_id = strsplit(as.character(stops_str), ",")) %>% 
+  unnest(stop_id) %>% 
+  mutate(stop_id = str_squish(stop_id)) %>% 
+  filter(stop_id != "NA") %>% 
+  filter(str_detect(stop_id, "^SEPTA")) %>%  #drop NJT 
+  select(FINAL_ID, stop_id)
+
+segment_control_data <- segment_stop_data %>% 
+  left_join(intersection_stops %>% select(-ons, -offs)) %>% #join to control data
+  group_by(FINAL_ID, control) %>% # code the control type for the corridor
+  summarise(n = n()) %>% 
+  spread(control, n) %>% 
+  mutate(intersections = sum(`All Way`,`Signalized`, na.rm = TRUE),
+         p_signalized = Signalized / intersections, 
+         p_allway = `All Way` / intersections) %>% 
+  mutate(n_allway = replace_na(`All Way`, 0),
+         n_signal = replace_na(Signalized, 0),
+         p_signalized = replace_na(p_signalized, 0),
+         p_allway = replace_na(p_allway, 0)) %>% 
+  select(FINAL_ID, n_signal, n_allway, n_intersections = intersections, p_signalized, p_allway)
+
+segments <- st_read("./data/prioritized_segments.geojson")
+
+segment_data_full <- segments %>% 
+  mutate(FINAL_ID = as.character(FINAL_ID)) %>% 
+  left_join(as.data.frame(segment_data, by = c("FINAL_ID")))  %>% 
+  left_join(as.data.frame(segment_control_data)) 
+
+
+
+ggplot(segment_data_full) +
+  geom_histogram(aes(x = p_signalized))
+
+ggplot(segment_data_full) +
+  geom_point(aes(x = rank, y = p_signalized))
+  
+ggplot(segment_data_full) +
+  geom_point(aes(x = avg_speed, y = p_signalized))
+
+
+sampling_source <- apc_data %>% 
+  group_by(route_id, source) %>% 
+  summarise(n = n())
+
+route_21_dwell <- apc_data %>% 
+  filter(route_id == 21) %>% 
+  group_by(stop_id, hour_bin) %>% 
+  summarise(dwell_avg = mean(dwell_time, na.rm = TRUE))
+
+
+stops <- apc_data %>% 
+  group_by(stop_id, stop_name, agency_id, stop_lat, stop_lon) %>% 
+  summarise(daily_ons = sum(ons, na.rm = TRUE), 
+            daily_offs = sum(offs, na.rm=TRUE),
+            average_load = mean(load, na.rm = TRUE)) %>% 
+  filter(agency_id == "SEPTA") #%>% 
+  #mutate(stop_id = as.numeric(str_squish(str_remove(stop_id, "SEPTA"))))
+
+#write_csv(stops, "./data/stop_data_2019.csv")
+  
+  
+stop_routes <- apc_data %>% 
+  group_by(stop_id, agency_id, route_id) %>% 
+  summarise() %>% 
+  filter(agency_id == "SEPTA") %>% 
+  mutate(stop_id = as.numeric(str_squish(str_remove(stop_id, "SEPTA"))))
+  
+#write_csv(stop_routes, "./data/stop_routes_2019.csv")
+
+stop_names <- apc_data %>% 
+  group_by(stop_id, agency_id, stop_name) %>% 
+  summarise() %>% 
+  filter(agency_id == "SEPTA") %>% 
+  mutate(stop_id = as.numeric(str_squish(str_remove(stop_id, "SEPTA"))))
+
+#write_csv(stop_names, "./data/stop_names_2019.csv")

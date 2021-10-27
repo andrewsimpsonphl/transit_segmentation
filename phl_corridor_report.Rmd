@@ -1,0 +1,393 @@
+---
+title:  "Segment Analysis Output"
+author: "Andrew Simpson (andrew.simpson@phila.gov)"
+date: "`r date()`"
+output: html_document
+  #pdf_document:
+    #latex_engine: xelatex
+header-includes:
+  - \usepackage{titlesec}
+  - \usepackage{titling}
+  - \usepackage{fontspec}
+  - \usepackage{float}
+  - \usepackage{dcolumn}
+  - \usepackage{booktabs}
+  - \setmainfont{Open Sans}
+  - \newfontfamily\headingfont{Montserrat}
+  - \titleformat*{\section}{\LARGE\headingfont}
+  - \titleformat*{\subsection}{\Large\headingfont}
+  - \titleformat*{\subsubsection}{\large\headingfont}
+  - \renewcommand{\maketitlehooka}{\headingfont}
+editor_options: 
+  chunk_output_type: inline
+subparagraph: yes
+#always_allow_html: false
+params:
+  apc_trip_data: trips
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#source("./code/segmentation_code.R")
+
+library(rmarkdown)
+library(tinytex)
+library(tidyverse)
+library(reactable) ; library(shiny)
+library(sf) ; library(sp)
+library(tidyverse)
+library(rgeos)
+library(xlsx)
+library(kableExtra)
+library(rphl)
+library(viridis)
+library(gridExtra)
+library(scales)
+```
+
+```{r analytics, include=FALSE}
+trip_dat <- params$apc_trip_data
+
+analytics <- suppressWarnings(analyze_segment(trip_dat))
+route_analytics <- suppressWarnings(analyze_segment_route(trip_dat))
+binned_analytics <- suppressWarnings(analyze_segment_hourbin(trip_dat))
+hourly_analytics <- suppressWarnings(analyze_segment_hourly(trip_dat))
+hourly_route_analytics <- suppressWarnings(analyze_segment_route_hourly(trip_dat))
+hourly_route_direction_analytics <- suppressWarnings(analyze_segment_route_direction_hourly(trip_dat))
+
+#render("phl_corridor_report.Rmd", params = list(apc_trip_data = trips))
+```
+
+Created using analytics tool version 1.1
+
+## Preface
+
+The following analytics are created using Spring 2019 APC Data from SEPTA. 
+
+Data warnings:
+
+- Dwell time has been estimated for all routes where not available, assuming 4.8 seconds per board and alight; 
+- Adjusted speeds are speeds with dwell time excluded; 
+- Be wary of route directions (e.g. the SB Route 48 annd the NB Route 17 both actual run East on Market Street);
+- Running times are only reported at the route level, as some routes diverge from corridor; 
+- Be wary of routes that *some* patterns diverge on the corridor - this will skew the "average" running time values;
+- Ridership is defined as all people riding the bus on a corridor and is calculated as `load_entering_corridor + all_boards_along_corridor = corridor_ridership`; and
+- Full excel sheets of data can be downloaded using app. 
+
+## Selected Corridor
+
+To Add: Map of User's Corridor
+
+\newpage
+## Daily Analytics
+```{r daily, echo=FALSE, warning=FALSE}
+
+table_1 <- route_analytics %>% bind_rows(analytics %>% mutate(route_id = "Total"))
+ 
+kable(table_1, booktabs = TRUE) %>%
+   kable_styling(latex_options = "scale_down")  %>%
+   row_spec(dim(table_1)[1], bold = T) %>% # format last row
+   column_spec(1, italic = T) # format first column
+```
+
+```{r daily_plot, echo=FALSE, out.width='50%', fig.height=5, warning=FALSE}
+
+ggplot(route_analytics, aes(y = daily_ridership, x = route_id, label = daily_ridership)) + 
+  geom_bar(stat = "identity", fill = "skyblue") +
+  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+  scale_y_continuous(name = "Total Riders Served", n.breaks = 8, limits = c(0, max(route_analytics$daily_ridership) * 1.1)) + 
+  scale_x_discrete(name = "Route Number") + 
+  labs(title = paste0("The Corridor Serves ", round(sum(analytics$daily_ridership)), " Riders per Day")) +
+  theme(text = element_text(size = 9))
+
+ggplot(route_analytics, aes(x = route_id, y = avg_adj_speed)) + 
+  geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
+  geom_errorbar(data = route_analytics, stat = "identity", ymin = route_analytics$adj_speed_10_pct, ymax = route_analytics$adj_speed_90_pct, colour="orange", alpha=0.6, size=1.3, width = 0.4) + 
+  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8, limits = c(0, max(route_analytics$adj_speed_90_pct) * 1.1)) +
+  scale_x_discrete(name = "Route Number") + 
+  labs(title = paste0("The Average Bus Travels at ", round(mean(analytics$avg_adj_speed), 1), " MPH on the Corridor")) +
+  theme(text = element_text(size = 9))
+```
+
+```{r daily_plot_2, echo=FALSE, out.width='50%', fig.height=5, warning=FALSE}
+ggplot(route_analytics, aes(x=route_id, y = trips, label = trips)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+  ylab("Daily Trips (2019)") + 
+  scale_x_discrete(name = "Route Number") + 
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "", title = paste0("The Corridor Serves ", sum(route_analytics$trips, na.rm = TRUE), " Trips per Day")) + 
+  #theme_phl() + 
+  theme(legend.position = "top")+
+  theme(text = element_text(size = 9))
+
+ggplot(route_analytics, aes(x=route_id, y = service_hours, label = round(service_hours))) + 
+  geom_bar(position="dodge", stat="identity") + 
+  geom_text(position = "dodge", stat = "identity", vjust = -0.75) +
+  #ggtitle("Market and JFK serve over 1,100 Bus Trips per Day") + 
+  ylab("Service Hours Per Day") + 
+  scale_x_discrete(name = "Route Number") + 
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "", title = paste0("The Corridor Serves ", round(sum(route_analytics$service_hours, na.rm = TRUE), 1), " Service Hours per Day")) + 
+  #theme_phl() + 
+  theme(legend.position = "top")+
+  theme(text = element_text(size = 9))
+```
+
+\newpage
+## Period Analytics
+```{r period_chart, echo=FALSE, warning=FALSE}
+
+ table_2<- binned_analytics %>% bind_rows(analytics %>% mutate(timeframe = "Daily")) %>%
+   mutate_if(is.numeric, ~round(., digits = 2))
+
+ kable(table_2, booktabs = TRUE) %>%
+   kable_styling(latex_options = "scale_down")  %>%
+   row_spec(dim(table_2)[1], bold = T) %>% # format last row
+   column_spec(1, italic = T) # format first column
+```
+
+```{r period_plot, echo=FALSE, out.width='50%', fig.height=5, warning=FALSE}
+
+ggplot(binned_analytics, aes(x = timeframe, y = daily_ridership, label = daily_ridership)) + 
+  geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
+  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+  scale_y_continuous(name = "Total Riders Served", n.breaks = 5) + #, limits = c(0, max(binned_analytics$avg_speed_90_pct) * 1.1)) +
+  scale_x_discrete(name = element_blank()) +
+  labs(title = "Ridership by Period (All Routes)")+
+  theme(text = element_text(size = 9))
+
+ggplot(binned_analytics, aes(x = timeframe, y = avg_adj_speed)) + 
+  geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
+  geom_errorbar(data = binned_analytics, stat = "identity", ymin = binned_analytics$adj_speed_10_pct, ymax = binned_analytics$adj_speed_90_pct, colour="orange", alpha=0.6, size=1.3, width = 0.4) + 
+  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8, limits = c(0, max(binned_analytics$adj_speed_90_pct) * 1.1)) +
+  scale_x_discrete(name = element_blank()) +
+  labs(title = "Speed by Period (All Routes)")+
+  theme(text = element_text(size = 9))
+
+
+```
+
+\newpage
+## Hourly Analytics
+```{r hourly_table, echo=FALSE, warning=FALSE}
+
+# table_3<- hourly_analytics %>% #bind_rows(hourly_analytics %>% mutate(timeframe = "Daily")) %>% 
+#     mutate_if(is.numeric, ~round(., digits = 2))
+# 
+# kable(table_3, booktabs = TRUE) %>%
+#   kable_styling(latex_options = "scale_down")  %>%
+#   #pack_rows(index = table((table_3$trip_hour))) %>% 
+#   #row_spec(dim(table_2)[1], bold = T) %>% # format last row
+#   column_spec(1, italic = T) # format first column
+```
+```{r hourly_plots, echo=FALSE, warning=FALSE}
+ggplot(hourly_analytics) + 
+  geom_line(aes(x = trip_hour, y = avg_adj_speed)) +
+  geom_point(aes(x = trip_hour, y = avg_adj_speed), shape=21, size=3) + 
+  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8) +
+  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+  labs(title = "Hourly Speed (All Routes)")+
+  theme(text = element_text(size = 9))
+
+ggplot(hourly_route_analytics, aes(x = trip_hour, y = avg_adj_speed, group=route_id, color=route_id)) + 
+  geom_line() +
+  geom_point(shape=21, size=3) + 
+  #scale_color_viridis(discrete = TRUE) +
+  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8) +
+  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+  labs(title = "Hourly Speed by Route (all directions)") +
+  theme(text = element_text(size = 9))
+
+ggplot(hourly_route_analytics, aes(x = trip_hour, y = daily_ridership, group=route_id, fill=route_id)) + 
+  geom_bar(position = "stack", stat = "identity") +
+  #geom_point(shape=21, size=3) + 
+  scale_color_viridis(discrete = TRUE) +
+  scale_y_continuous(name = "Riders Served", n.breaks = 8) +
+  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+  labs(title = "Hourly Ridership by Route (all directions)") +
+  theme(text = element_text(size = 9))
+
+```
+
+### Hourly Analytics by Direction
+```{r hourly_direction, echo=FALSE, warning=FALSE, message=FALSE}
+# break into plots by route
+
+ggplot(hourly_route_direction_analytics, aes(x = trip_hour, y = avg_adj_speed, color=direction_id)) + 
+  geom_line() +
+  geom_point(size=1.5) + 
+  #scale_color_viridis(discrete = TRUE) +
+  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8) +
+  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+  labs(title = "Hourly Speed by Route/Direction") +
+  theme(text = element_text(size = 9)) +
+  facet_wrap(~route_id, ncol = 2) + 
+  theme(text = element_text(size = 9)) +
+  theme(axis.text.x = element_text(angle = 90))
+```
+```{r hourly_direction_2, echo=FALSE, warning=FALSE}
+
+ggplot(hourly_route_direction_analytics, aes(x = trip_hour, y = daily_ridership, fill=direction_id)) + 
+  geom_bar(position = "stack", stat = "identity") +
+  #geom_point(size=3) + 
+  #scale_color_viridis(discrete = TRUE) +
+  scale_y_continuous(name = "Riders Served", n.breaks = 8) +
+  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+  labs(title = "Hourly Ridership by Route/Direction") +
+  theme(text = element_text(size = 9)) +
+  facet_wrap(~route_id, ncol = 2) + 
+  theme(text = element_text(size = 9))  +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+```{r hourly_direction_3, echo=FALSE, warning=FALSE}
+
+ggplot(hourly_route_direction_analytics, aes(x = trip_hour, y = avg_run, fill=direction_id)) + 
+  geom_bar(position = "stack", stat = "identity") +
+  #geom_point(size=3) + 
+  #scale_color_viridis(discrete = TRUE) +
+  ylab("Average Running Time (Includes Dwell)") +
+  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+  labs(title = "Average Corridor Running Time by Route/Direction") +
+  theme(text = element_text(size = 9)) +
+  facet_wrap(~route_id + direction_id, ncol = 2) + 
+  theme(text = element_text(size = 9))  +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+
+## Value of Potential Improvements 
+
+The following represents the value of theoretical improvements to the corridor analyzed above. 
+
+### Key Assumptions
+This this analysis makes the following assumptions:
+
+1. Reductions will be applied equally across all trips and across the day along the corridor;
+2. Running times include dwell times, so savings can be found both through reducing dwell time and improving operating speed; and
+3. Any savings in running time can immediately be recouped and/or has inherent monetary value.
+
+### Theoretical Time Savings
+
+The following charts show the potential immprovements that bus lane installation could provide across different levels of time savings, ranging from 5% to 20%. See the Transit Plan's Toolkit section for a range of potential interventions and guidance on what may succeed on this corridor. 
+
+```{r improvement_data, echo=FALSE, warning=FALSE}
+
+gathered <- analytics %>%
+  mutate(zero = service_hours) %>%
+  mutate(five = service_hours * .95) %>%
+  mutate(ten = service_hours * .90) %>%
+  mutate(fifteen = service_hours * .85) %>%
+  mutate(twenty = service_hours * .80) %>%
+  gather(`zero`, `five`, `ten`, `fifteen`, `twenty`,
+         key = "reduction_level", value = "revenue_hours") %>%
+  mutate(cost = as.numeric(revenue_hours) * 156.05) %>% # $156.05 - SEPTA NTD report bus cost per service hour
+  mutate(cost_per_rider = cost / daily_ridership) %>%
+  mutate(service_min_per_trip = as.numeric(revenue_hours) / trips * 60) %>%
+  mutate(service_time_ptrip = (service_min_per_trip %>% dminutes() %>% as.Date(origin = "2020-05-15"))) %>%
+  mutate(reduction_level = factor(reduction_level, levels = c("zero", "five", "ten", "fifteen", "twenty")))
+
+set_to_current <- analytics %>%
+  mutate(five = (service_hours * .95) - service_hours) %>%
+  mutate(ten = (service_hours * 0.9) - service_hours) %>%
+  mutate(fifteen = (service_hours * 0.85) - service_hours) %>%
+  mutate(twenty = (service_hours * 0.8) - service_hours) %>%
+  gather(`five`, `ten`, `fifteen`, `twenty`,
+         key = "reduction_level", value = "revenue_hour_reduction") %>%
+  mutate(value = abs(as.numeric(revenue_hour_reduction)) * 156.05) %>% # $156.05 - SEPTA NTD report bus cost per service hour
+  mutate(value_per_rider = value / daily_ridership) %>%
+  mutate(service_min_per_trip_reduction = dminutes(as.numeric(revenue_hour_reduction) / trips * 60)) %>%
+  mutate(reduction_level = factor(reduction_level, levels = c("five", "ten", "fifteen", "twenty")))
+
+value_5 <- 250 * (set_to_current %>% filter(reduction_level == "five") %>% as_tibble() %>% select(value) %>% as.numeric())
+value_10 <- 250 * (set_to_current %>% filter(reduction_level == "ten") %>% as_tibble() %>% select(value) %>% as.numeric())
+value_15 <- 250 * (set_to_current %>% filter(reduction_level == "fifteen") %>% as_tibble() %>% select(value) %>% as.numeric())
+value_20 <- 250 * (set_to_current %>% filter(reduction_level == "twenty") %>% as_tibble() %>% select(value) %>% as.numeric())
+
+```
+```{r revenue_hour_reduction, echo=FALSE, warning=FALSE, message=FALSE, out.width = '50%'}
+# ggplot(gathered, aes(x=reduction_level, y=as.numeric(revenue_hours))) + 
+#   geom_bar(position="dodge", stat="identity") + 
+#   #scale_y_continuous(limits = c(0, 1250), breaks=seq(0, 1250, by = 250)) + 
+#   scale_x_discrete(labels=c("Current", "5%", "10%", "15%", "20%")) + 
+#   #coord_cartesian(ylim=c(10,35)) + # FIX THE SCALE
+#   ggtitle("Estimated Reduction in Revenue Hours") + 
+#   xlab("Percent Reduction in Running Time (Service Hours)") + 
+#   ylab("Aggregate Daily Service Hours on Corridor") + 
+#   scale_fill_phl(palette = "main", discrete = T) +
+#   labs(fill= "") + 
+#   #theme_phl() + 
+#   theme(legend.position = "top") +
+#   theme(text = element_text(size = 9))
+
+ggplot(set_to_current, aes(x=reduction_level, y=revenue_hour_reduction)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  scale_y_continuous() + 
+  #scale_y_time() +
+  scale_x_discrete(labels=c("5%", "10%", "15%", "20%")) + 
+  scale_fill_discrete(name="Segment Name") + 
+  theme_minimal() + 
+  ggtitle("Estimated Reduction in Service Hours on Corridor") + 
+  xlab("Percent Reduction in Running Time (Service Hours)") + 
+  ylab("Service Hours") + 
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "") + 
+  #theme_phl() + 
+  theme(legend.position = "top") +
+  theme(text = element_text(size = 9))
+
+ggplot(set_to_current, aes(x=reduction_level, y=service_min_per_trip_reduction)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  #scale_y_continuous(limits = c(0, -60), breaks=seq(0, -60, by = 10)) + 
+  scale_y_time() +
+  scale_x_discrete(labels=c("5%", "10%", "15%", "20%")) + 
+  scale_fill_discrete(name="Segment Name") + 
+  theme_minimal() + 
+  ggtitle("Estimated Reduction in Service Time per Trip") + 
+  xlab("Percent Reduction in Running Time (Service Hours)") + 
+  ylab("Service Hours per Trip") + 
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "") + 
+  #theme_phl() + 
+  theme(legend.position = "top") +
+  theme(text = element_text(size = 9))
+```
+
+
+On a per trip basis, passengers would see a per-trip reduciton of 20 seconds per trip at a 10% reduction. *Note: a more accurate measure would look at individual trips and calculate a per-rider time savings.*
+
+
+### Value of Time Savings 
+
+**Perhaps mostly importantly, however, is the value proposition.** This chart shows the potential cost savings from running time improvements that could be reallocated to additional service. 
+
+
+``` {r value_chart, echo=FALSE, warning=FALSE, message=FALSE, out.width = '100%'}
+ggplot(set_to_current, aes(x=reduction_level, y=value)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  scale_y_continuous(labels=scales::dollar, limits = c(0, max(set_to_current$value) * 1.1), breaks = seq(0, max(set_to_current$value) * 1.1, by = 250)) + 
+  scale_x_discrete(labels=c("5%", "10%", "15%", "20%")) + 
+  scale_fill_discrete(name="Segment Name") + 
+  theme_minimal()  + 
+  ggtitle("Estimated Reduction in Operating Costs") + 
+  xlab("Percent Reduction in Running Time") + 
+  ylab("Daily Value of Running Time Reduction") +
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "") + 
+  #theme_phl() + 
+  theme(legend.position = "top") +
+  theme(text = element_text(size = 9))
+```
+
+## Results
+
+- A 10% reduction time across a day's worth of trips could be valued at approximately **`r (value_10 / 250) %>% dollar()`**. Given that there are approximately 250 working weekdays in 2020, this estimate would put value the bus lane at **`r value_10 %>% dollar()`** per year in terms of operational savings.
+
+These results do not take into account more advanced measures that should be considered when evaluating a Transit First project. Future work should explore:
+
+- Reviewing assumptions about how different improvements generate different time savings;
+- Modeling more complexly the disparate impacts of improvements at different times of day;
+- More complely modeling the value of time savings at different times of day; and
+- Incorporate scheduling information to highlight periods where time savings could "save a bus."

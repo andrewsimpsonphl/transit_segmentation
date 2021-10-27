@@ -8,7 +8,7 @@ library(editData)
 ## @knitr pull_data
 
 pull_arcgis_dat <- function() {
-  token = "lOl2_707XCNDe11MqOQSYTa6RNQeK48BFQrwmebshI9dpxirD6TMp_aLjIwNV98oUV-D9gphuiATkVbpoBrukyztOUnc2BLZuLC_O8y6S9PHFcjTHCEd9EfIrRz1t39jPmD7uJ8wM_F22f5_LVgaT7qcgOmLlN9ePYmZxxcPfxrC7aurNea2tDhdneXJY3Y7lhUO5ihEJoTBhTcQF6i777MkeZkM1y0kGXiQC9DOk5Crj_gytHwUoFLZ2jJRZi32"
+  token = "cP17eAcEi6efVDUJKKqiJBcfahrr8h198K9ZS9iG7Tsm1z_-yvrHweuw_evqwwDvD7eZORz2mBRvldAzg68rmPBI5saK-s_F7e9sGTji17XB7X-6RvvH6S8rjXuVv-nJSAE4O_d6O85cSzimPIVyFl6HquwYXQrCg2r5kPB4hIZtzdPXdo8rWuvGkwlQUzvVFquiABcpCfxu0iL8QVGZn_7IB78Q8nnrLxnFAJ6quDDZxDA5ijL2xcrqlBzNv_Ey"
   
   path_geo_0_4000 <- paste0("https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services/corrected_segments/FeatureServer/0/query?where=FID+%3E+0&objectIds=&time=&geometry=&geometryType=esriGeometryEnvelope&inSR=&spatialRel=esriSpatialRelIntersects&resultType=standard&distance=0.0&units=esriSRUnit_Meter&returnGeodetic=false&outFields=*&returnHiddenFields=false&returnGeometry=true&featureEncoding=esriDefault&multipatchOption=xyFootprint&maxAllowableOffset=&geometryPrecision=&outSR=&datumTransformation=&applyVCSProjection=false&returnIdsOnly=false&returnUniqueIdsOnly=false&returnCountOnly=false&returnExtentOnly=false&returnQueryGeometry=false&returnDistinctValues=false&cacheHint=false&orderByFields=&groupByFieldsForStatistics=&outStatistics=&having=&resultOffset=&resultRecordCount=&returnZ=false&returnM=false&returnExceededLimitFeatures=true&quantizationParameters=&sqlFormat=none&f=pgeojson&token=", token)
   path_geo_4001_8000 <- paste0("https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services/corrected_segments/FeatureServer/0/query?where=FID+%3E+0&objectIds=&time=&geometry=&geometryType=esriGeometryEnvelope&inSR=&spatialRel=esriSpatialRelIntersects&resultType=standard&distance=0.0&units=esriSRUnit_Meter&returnGeodetic=false&outFields=*&returnHiddenFields=false&returnGeometry=true&featureEncoding=esriDefault&multipatchOption=xyFootprint&maxAllowableOffset=&geometryPrecision=&outSR=&datumTransformation=&applyVCSProjection=false&returnIdsOnly=false&returnUniqueIdsOnly=false&returnCountOnly=false&returnExtentOnly=false&returnQueryGeometry=false&returnDistinctValues=false&cacheHint=false&orderByFields=&groupByFieldsForStatistics=&outStatistics=&having=&resultOffset=4001&resultRecordCount=&returnZ=false&returnM=false&returnExceededLimitFeatures=true&quantizationParameters=&sqlFormat=none&f=pgeojson&token=", token)
@@ -118,7 +118,8 @@ nest_trip_data_v2 <- function(filtered_dat) {
   return(y)
 }
 
-#nested_apc_df = nest_trip_data_v2(filter_trip_list(combined_apc_dataset, list))[10]$data[[1]]
+#nested_trip_dat = nest_trip_data_v2(filter_trip_list(combined_apc_dataset, stop_list))
+#nested_apc_dat <- nested_trip_dat[[2]][[108]]
 
 # magic
 calc_pass_v2 <- function(nested_apc_df, list) {
@@ -146,6 +147,9 @@ calc_pass_v2 <- function(nested_apc_df, list) {
       run = as.duration(last(hms(time_stamp)) - first(hms(time_stamp))),
       trip_begin = (first((time_stamp))),
       trip_end = (last((time_stamp))),
+      distance_traveled = sum(delta_miles, na.rm = TRUE),
+      n_stops = n(),
+      avg_stop_spacing_ft = sum(delta_miles, na.rm = TRUE) / n() * 5280,
       dwell_sum = as.duration(sum(dwell_time, na.rm = TRUE)),
       ons_total = sum(ons),
       offs_total = sum(offs),
@@ -190,20 +194,31 @@ find_trip_dat_v2 <- function(apc_trip_data, stop_list) {
   final_dat <- lazy_dt(run_passenger_data_v2(nested_trip_dat, stop_list)) %>%
     ungroup()  %>%
     lazy_dt() %>%
-    dt_unnest(calculated_pass)
+    dt_unnest(calculated_pass) %>% 
+    na_if(0)
+  
   
   if(final_dat$route_id == 500){
-    # do nothing for Direct Bus   
+    # do nothing for Direct Bus
     return(final_dat)
   } else{
     #print(final_dat$route_id)
     final_dat <- final_dat %>% filter(run > as.duration(0)) # filter out trips that only make 1 stop on the corridor
     return(final_dat)
   }
-  
-  
+
   gc()
 }
+
+
+find_stop_dat <- function(apc_trip_data = apc_data, stop_list) {
+  filtered_dat <- filter_trip_list(apc_trip_data, stop_list)
+  
+  output <- filtered_dat %>% filter(stop_id %in% stop_list)
+  
+  return(output)
+}
+
 
 #list <- c()
 #test <- find_trip_dat_v2(combined_apc_dataset, stop_list = list)
@@ -339,19 +354,49 @@ add_route_analytics <- function(compiled_apc_dat, gis_dat) {
   return(segments_with_apc_route_analytics)
 }
 
+####        ####
+
 analyze_segment <- function(trip_dat) {
   output <- trip_dat %>% 
     group_by() %>% 
     summarise(
-      daily_ridership = round(sum(ridership), 0),
+      daily_ridership = round(sum(ridership, na.rm = TRUE), 0),
       trips = n(),
       routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
       service_hours = sum(run) / 60 / 60 %>% round(2),
       riders_per_hour = round(daily_ridership / service_hours, 2),
-      avg_dwell_min = round(mean(dwell_sum, na.rm = TRUE) / 60, 2),
+      on_off = (sum(ons_offs, na.rm = TRUE)),
+      dwell_per_onoff = round(on_off / sum(dwell_est), 2),
+      onoff_per_trip = round( on_off / n(), 2),
+      onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
-      avg_speed_10_pct = quant_num(avg_speed, 0.1),
-      avg_speed_90_pct = quant_num(avg_speed, 0.9)
+      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
+      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
+      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
+      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
+      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2)
+    )
+}
+
+analyze_segment_route <- function(trip_dat) {
+  output <- trip_dat %>% 
+    group_by(route_id) %>% 
+    summarise(
+      daily_ridership = round(sum(ridership, na.rm = TRUE), 0),
+      trips = n(),
+      routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
+      service_hours = sum(run) / 60 / 60 %>% round(2),
+      riders_per_hour = round(daily_ridership / service_hours, 2),
+      on_off = (sum(ons_offs, na.rm = TRUE)),
+      dwell_per_onoff = round(on_off / sum(dwell_est), 2),
+      onoff_per_trip = round( on_off / n(), 2),
+      onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
+      avg_segment_speed = mean(avg_speed, na.rm = TRUE),
+      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
+      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
+      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
+      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
+      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2)
     )
 }
 
@@ -361,23 +406,30 @@ analyze_segment_hourbin <- function(trip_dat) {
     mutate(timeframe = case_when(
       trip_hour <=6 ~"Early AM",
       trip_hour >=7 & trip_hour <=10 ~"AM Rush",
-      trip_hour >=11 & trip_hour <=14 ~"Afternoon",
-      trip_hour >=15 & trip_hour <=20 ~"PM Rush",
-      trip_hour >=21 & trip_hour <=24 ~"Evening",
+      trip_hour >=11 & trip_hour <=15 ~"Afternoon",
+      trip_hour >=16 & trip_hour <=19 ~"PM Rush",
+      trip_hour >=20 & trip_hour <=24 ~"Evening",
     )) %>% 
     mutate(timeframe = factor(timeframe, ordered = TRUE, 
                               levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
     group_by(timeframe) %>% 
     summarise(
-      daily_ridership = round(sum(ridership), 0),
+      daily_ridership = round(sum(ridership, na.rm = TRUE), 0),
       trips = n(),
       routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
       service_hours = sum(run) / 60 / 60 %>% round(2),
       riders_per_hour = round(daily_ridership / service_hours, 2),
-      avg_dwell_min = round(mean(dwell_sum, na.rm = TRUE) / 60, 2),
+      on_off = (sum(ons_total, na.rm = TRUE) + sum(offs_total, na.rm = TRUE) ),
+      on_off = (sum(ons_offs, na.rm = TRUE)),
+      dwell_per_onoff = round(on_off / sum(dwell_est), 2),
+      onoff_per_trip = round( on_off / n(), 2),
+      onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
-      avg_speed_10_pct = quant_num(avg_speed, 0.1),
-      avg_speed_90_pct = quant_num(avg_speed, 0.9)
+      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
+      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
+      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
+      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
+      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2)
     )
 }
 
@@ -388,22 +440,30 @@ analyze_segment_route_hourly <- function(trip_dat) {
       trip_hour <=6 ~"Early AM",
       trip_hour >=7 & trip_hour <=10 ~"AM Rush",
       trip_hour >=11 & trip_hour <=14 ~"Afternoon",
-      trip_hour >=15 & trip_hour <=20 ~"PM Rush",
-      trip_hour >=21 & trip_hour <=24 ~"Evening",
+      trip_hour >=15 & trip_hour <=19 ~"PM Rush",
+      trip_hour >=20 & trip_hour <=24 ~"Evening",
     )) %>% 
     mutate(timeframe = factor(timeframe, ordered = TRUE, 
                               levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
     group_by(trip_hour, route_id) %>% 
     summarise(
-      daily_ridership = round(sum(ridership), 0),
+      daily_ridership = round(sum(ridership, na.rm = TRUE), 0),
       trips = n(),
+      avg_headway_min = (60 / n()),
       #routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
       service_hours = round(sum(run) / 60 / 60, 2),
       riders_per_hour = round(daily_ridership / service_hours, 2),
-      avg_dwell_min = round(mean(dwell_sum, na.rm = TRUE) / 60, 2),
-      avg_segment_speed = round(mean(avg_speed, na.rm = TRUE), 2),
-      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
-      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2)
+      on_off = (sum(ons_offs, na.rm = TRUE)),
+      dwell_per_onoff = round(on_off / sum(dwell_est), 2),
+      onoff_per_trip = round( on_off / n(), 2),
+      onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
+      avg_segment_speed = mean(avg_speed, na.rm = TRUE),
+      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
+      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
+      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
+      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
+      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2),
+      avg_run = hms::as_hms(round(mean(run, na.rm = TRUE)))
     )
 }
 
@@ -421,15 +481,22 @@ analyze_segment_hourly <- function(trip_dat) {
     #                           levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
     group_by(trip_hour) %>% 
     summarise(
-      daily_ridership = round(sum(ridership), 0),
+      daily_ridership = round(sum(ridership, na.rm = TRUE), 0),
       trips = n(),
+      avg_headway_min = (60 / n()),
       routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
       service_hours = round(sum(run) / 60 / 60, 2),
       riders_per_hour = round(daily_ridership / service_hours, 2),
-      avg_dwell_min = round(mean(dwell_sum, na.rm = TRUE) / 60, 2),
-      avg_segment_speed = round(mean(avg_speed, na.rm = TRUE), 2),
-      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
-      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2)
+      on_off = (sum(ons_offs, na.rm = TRUE)),
+      dwell_per_onoff = round(on_off / sum(dwell_est), 2),
+      onoff_per_trip = round( on_off / n(), 2),
+      onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
+      avg_segment_speed = mean(avg_speed, na.rm = TRUE),
+      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
+      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
+      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
+      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
+      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2)
     )
 }
 
@@ -440,21 +507,141 @@ analyze_segment_route_direction_hourly <- function(trip_dat) {
       trip_hour <=6 ~"Early AM",
       trip_hour >=7 & trip_hour <=10 ~"AM Rush",
       trip_hour >=11 & trip_hour <=14 ~"Afternoon",
-      trip_hour >=15 & trip_hour <=20 ~"PM Rush",
-      trip_hour >=21 & trip_hour <=24 ~"Evening",
+      trip_hour >=15 & trip_hour <=19 ~"PM Rush",
+      trip_hour >=20 & trip_hour <=24 ~"Evening",
     )) %>% 
     mutate(timeframe = factor(timeframe, ordered = TRUE, 
                               levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
     group_by(trip_hour, route_id, direction_id) %>% 
     summarise(
-      daily_ridership = round(sum(ridership), 0),
+      daily_ridership = round(sum(ridership, na.rm = TRUE), 0),
       trips = n(),
+      avg_headway_min = (60 / n()),
       #routes_served = paste(unique(fix_routes(route_id)) %>% unlist(), collapse = ", "),
       service_hours = round(sum(run) / 60 / 60, 2),
       riders_per_hour = round(daily_ridership / service_hours, 2),
-      avg_dwell_min = round(mean(dwell_sum, na.rm = TRUE) / 60, 2),
-      avg_segment_speed = round(mean(avg_speed, na.rm = TRUE), 2),
-      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
-      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2)
+      on_off = (sum(ons_offs, na.rm = TRUE)),
+      dwell_per_onoff = round(on_off / sum(dwell_est), 2),
+      onoff_per_trip = round( on_off / n(), 2),
+      onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
+      avg_segment_speed = mean(avg_speed, na.rm = TRUE),
+      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
+      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
+      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
+      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
+      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2),
+      avg_run = hms::as_hms(round(mean(run, na.rm = TRUE)))
     )
 }
+
+# dwell_available <- apc_data %>% filter(source == "infodev") %>% 
+#   mutate(actvity = ons + offs) %>% 
+#   mutate(dwell_fix = case_when(
+#     dwell_time > 120 ~ 0,
+#     stop_seq == 1 ~ 0,
+#     TRUE ~ dwell_time
+#   )) %>%
+#   mutate(dwell_per_onoff = dwell_fix / actvity)
+# 
+# avg_dwell <- dwell_available %>% 
+#   group_by() %>% 
+#   summarise(dwell_per_person = mean(dwell_fix, na.rm = TRUE))
+
+analyze_stops_daily <- function(stop_trip_dat) {
+  output <- stop_trip_dat %>% group_by(stop_id, stop_name, stop_lat, stop_lon) %>% 
+    summarise(routes = paste(unlist(list(unique(route_id))), collapse = ","),
+              total_trips = n(), 
+              avg_headway = 60 / (n() / 24),
+              total_ons = sum(ons, na.rm = TRUE), 
+              total_offs = sum(offs, na.rm = TRUE), 
+              avg_load = mean(load, na.rm = TRUE),
+              avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>% 
+    mutate_at(c(6:11), round) %>% 
+    arrange(stop_name)
+}
+
+analyze_stops_routes_daily <- function(stop_trip_dat) {
+  output <- stop_trip_dat %>% group_by(stop_id, stop_name, route_id, direction_id)  %>% 
+    summarise(routes = paste(unlist(list(unique(route_id))), collapse = ","),
+              total_trips = n(), 
+              avg_headway = 60 / (n() / 24),
+              total_ons = sum(ons, na.rm = TRUE), 
+              total_offs = sum(offs, na.rm = TRUE), 
+              avg_load = mean(load, na.rm = TRUE),
+              avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>%     
+    mutate_if(is.double, round)  
+}
+ 
+analyze_stops_routes_hourbin <- function(stop_trip_dat) {
+  output <- stop_trip_dat %>% 
+    mutate(trip_hour = time_stamp %>% as.character() %>% hms() %>% hour()) %>%
+    mutate(timeframe = case_when(
+      trip_hour <=6 ~"Early AM",
+      trip_hour >=7 & trip_hour <=10 ~"AM Rush",
+      trip_hour >=11 & trip_hour <=15 ~"Afternoon",
+      trip_hour >=16 & trip_hour <=19 ~"PM Rush",
+      trip_hour >=20 & trip_hour <=24 ~"Evening",
+    )) %>% 
+    mutate(hour_len = case_when(
+      trip_hour <=6 ~ 6,
+      trip_hour >=7 & trip_hour <=10 ~ 4,
+      trip_hour >=11 & trip_hour <=15 ~5,
+      trip_hour >=16 & trip_hour <=19 ~4,
+      trip_hour >=20 & trip_hour <=24 ~4,
+    )) %>% 
+    mutate(timeframe = factor(timeframe, ordered = TRUE, 
+                              levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
+    group_by(stop_id, stop_name, route_id, direction_id, timeframe) %>% 
+    summarise(routes = paste(unlist(list(unique(route_id))), collapse = ","),
+              total_trips = n(), 
+              #avg_headway = (60 / total_trips / hour_len),
+              total_ons = sum(ons, na.rm = TRUE), 
+              total_offs = sum(offs, na.rm = TRUE), 
+              avg_load = mean(load, na.rm = TRUE),
+              avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>%     
+    mutate_if(is.double, round)
+}
+
+analyze_stops_routes_hourly <- function(stop_trip_dat) {
+  output <- stop_trip_dat %>% 
+    mutate(hour = time_stamp %>% as.character() %>% hms() %>% hour()) %>%
+    group_by(stop_id, stop_name, route_id, direction_id, hour) %>% 
+    summarise(routes = paste(unlist(list(unique(route_id))), collapse = ","),
+              total_trips = n(), 
+              avg_headway = 60 / (n()),
+              total_ons = sum(ons, na.rm = TRUE), 
+              total_offs = sum(offs, na.rm = TRUE), 
+              avg_load = mean(load, na.rm = TRUE),
+              avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>%     
+    mutate_if(is.double, round)
+}
+
+generate_queue_sizes <- function(apc_data, input_route_id) {
+  dat <- apc_data %>%
+    #filter(route_id == input_route_id) %>% 
+    group_by(stop_id, route_id, stop_name, stop_lat, stop_lon) %>% 
+    summarise(ons_sum = sum(ons),
+              offs_sum = sum(offs),
+              ons_per_trip = mean(ons),
+              ons_max = round(quant_num(ons, 1), 2),
+              offs_per_trip = mean(offs),
+              offs_max = round(quant_num(offs, 1), 2),
+              sq_ft_min = (ons_max + offs_max) * 12,
+              sq_ft_pref = (ons_max + offs_max) * 25) %>% 
+    group_by(stop_id, stop_name, stop_lat, stop_lon) %>% 
+    summarise(routes = paste(unlist(list(unique(route_id))), collapse = ","),
+              ons_sum = sum(ons_sum),
+              offs_sum = sum(offs_sum),
+              max_avg_wait = sum(ons_max),
+              max_avg_total = sum(ons_max) + sum(offs_max),
+              los_c = sum(sq_ft_min),
+              los_a = sum(sq_ft_pref))
+}
+
+
+
+
