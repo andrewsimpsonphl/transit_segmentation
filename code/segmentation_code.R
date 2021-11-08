@@ -118,20 +118,23 @@ nest_trip_data_v2 <- function(filtered_dat) {
   return(y)
 }
 
-#nested_trip_dat = nest_trip_data_v2(filter_trip_list(combined_apc_dataset, stop_list))
-#nested_apc_dat <- nested_trip_dat[[2]][[108]]
+#nested_trip_dat = nest_trip_data_v2(filter_trip_list(apc_data, stop_list))
+#nested_apc_df <- nested_trip_dat[[2]][[2]]
 
 # magic
 calc_pass_v2 <- function(nested_apc_df, list) {
   
   # arrange by stop sequence and then slice
   x <- nested_apc_df %>%
+    as_tibble() %>% 
     arrange(stop_seq) %>%
     distinct(`stop_id`, .keep_all = TRUE) %>%
     mutate(id = row_number()) %>%
     group_by(id)
   
-  id_list <- x$id[x$`stop_id` %in% list]
+  id_list <- x %>% as_tibble() %>% filter(stop_id %in% list) %>% select(id) %>% as.list() %>% unlist()
+    
+  #x$id[x$`stop_id` %in% list]
   
   # filter to stops that occur between the first and last stop in the list
   y <- x %>%
@@ -174,15 +177,13 @@ run_passenger_data_v2 <- function(nested_trip_dat, stop_list) {
   
   return(output)
 }
-#test <- run_passenger_data_v2(df, list)
+#test <- run_passenger_data_v2(nested_trip_dat, list)
 
 run_passenger_data_v3 <- function(nested_trip_dat, stop_list) {
-  output <- nested_trip_dat %>%
-    mutate(calculated_pass = map(data, calc_pass_v2, list = stop_list))
+  output <- nested_trip_dat %>% mutate(calculated_pass = map(data, calc_pass_v2, list = stop_list))
   
   return(output)
 }
-#test <- run_passenger_data_v3(df, list)
 
 # function that returns a dataframe of APC trip data for a list of stops
 find_trip_dat_v2 <- function(apc_trip_data, stop_list) {
@@ -191,11 +192,12 @@ find_trip_dat_v2 <- function(apc_trip_data, stop_list) {
   nested_trip_dat <- nest_trip_data_v2(filtered_dat)
   print(paste("Running passenger data for", count(nested_trip_dat %>% as_tibble()), "trips", sep = " "))
   
-  final_dat <- lazy_dt(run_passenger_data_v2(nested_trip_dat, stop_list)) %>%
+  final_dat <- lazy_dt(run_passenger_data_v3(nested_trip_dat, stop_list)) %>%
     ungroup()  %>%
     lazy_dt() %>%
     dt_unnest(calculated_pass) %>% 
-    na_if(0)
+    na_if(0) %>% 
+    as_tibble()
   
   
   if(final_dat$route_id == 500){

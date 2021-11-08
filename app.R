@@ -439,7 +439,7 @@ server <- function(input, output, session) {
         stop_list <- data$stop_list %>% unlist() %>% as.character() %>% unique()
         print(stop_list)
         
-        trip_dat <- suppressWarnings(find_trip_dat_v2(apc_data, stop_list)) %>% 
+        trip_dat <- (find_trip_dat_v2(apc_data, stop_list)) %>% 
             rowwise() %>% 
             mutate(dwell_est = case_when(
                         dwell_sum >=0 ~ dwell_sum,
