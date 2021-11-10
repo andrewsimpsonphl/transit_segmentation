@@ -1,0 +1,52 @@
+---
+title: "Olney Corridor Analysis"
+author: "Zoe Yoo"
+date: "11/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+source("./code/segmentation_code.R")
+
+library(rmarkdown)
+library(tinytex)
+library(tidyverse)
+library(reactable) ; library(shiny)
+library(sf) ; library(sp)
+library(tidyverse)
+library(rgeos)
+library(xlsx)
+library(kableExtra)
+library(rphl)
+library(viridis)
+library(gridExtra)
+library(scales)
+
+```
+
+
+## Overall Corridor Analysis
+
+*Info on the corridor, which bus routes run through it (18,26), the neighborhood around it, basic population?
+Factors we have: average segment speed, 
+
+```{r}
+# "NA", SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA28699", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381","SEPTA15795", "SEPTA373","SEPTA382","SEPTA15910"
+# "SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962", "SEPTA16963" "SEPTA15815" "SEPTA16964" "SEPTA15817" # Olney & 7th to Olney & Front
+# "SEPTA372", "SEPTA15911" "NA", "SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913", "SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919"
+
+```
+
+## Segment Analysis
+
+### Chelten to Broad
+
+
+
+### Broad to 7th
+
+
+### 7th to Front
+
