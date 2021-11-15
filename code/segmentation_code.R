@@ -147,6 +147,7 @@ calc_pass_v2 <- function(nested_apc_df, list) {
     mutate(entry_load = first(load)) %>%
     group_by(route_id, direction_id, pattern_id, source) %>%
     summarise(
+      stop_list = list(unique(stop_id)), 
       run = as.duration(last(hms(time_stamp)) - first(hms(time_stamp))),
       trip_begin = (first((time_stamp))),
       trip_end = (last((time_stamp))),
