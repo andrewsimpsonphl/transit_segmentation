@@ -29,8 +29,11 @@ library(scales)
 
 ## Overall Corridor Analysis
 
-*Info on the corridor, which bus routes run through it (18,26), the neighborhood around it, basic population?
+### Broad Descriptive Stats
+* Info on the corridor, which bus routes run through it (18,26), the neighborhood around it, basic population?
 Factors we have: average segment speed, 
+* Map of corridor? Automated using leaflet? maybe kind of tricky
+* Could use tidycensus to pull in basic descriptive info on the corridor
 
 ```{r}
 # "NA", SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA28699", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381","SEPTA15795", "SEPTA373","SEPTA382","SEPTA15910"
@@ -39,7 +42,22 @@ Factors we have: average segment speed,
 
 ```
 
-## Segment Analysis
+```{r}
+library(leaflet)
+rand_lng = function(n = 10) rnorm(n, -93.65, .01)
+rand_lat = function(n = 10) rnorm(n, 42.0285, .01)
+m = leaflet() %>% addTiles() %>% addCircles(rand_lng(50), rand_lat(50), radius = runif(50, 10, 200))
+m
+```
+
+### Corridor Level Descriptive Stats
+
+### Corridor/Route Level Stats
+
+
+## Sub-Corridor Analysis
+
+* try creating a dataframe of multiple sub-corridors
 
 ### Chelten to Broad
 
