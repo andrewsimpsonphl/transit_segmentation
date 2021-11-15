@@ -8,11 +8,11 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-source("./code/segmentation_code.R")
+source("https://raw.githubusercontent.com/andrewsimpsonphl/transit_segmentation/master/code/segmentation_code.R")
 
 library(rmarkdown)
 library(tinytex)
-library(tidyverse)
+library(tidyverse); library(tidycensus)
 library(reactable) ; library(shiny)
 library(sf) ; library(sp)
 library(tidyverse)
@@ -24,6 +24,8 @@ library(viridis)
 library(gridExtra)
 library(scales)
 
+options(tigris_class = "sf") # tells tidycensus to download Census geometries in the sf or Simple Feature format
+
 ```
 
 
@@ -31,7 +33,7 @@ library(scales)
 
 ### Broad Descriptive Stats
 * Info on the corridor, which bus routes run through it (18,26), the neighborhood around it, basic population?
-Factors we have: average segment speed, 
+Tactors we have: average segment speed, stop spacing (avg_stop_spacing_ft), ons/offs, average load, max entry load (max # of people on first? load), dwell time
 * Map of corridor? Automated using leaflet? maybe kind of tricky
 * Could use tidycensus to pull in basic descriptive info on the corridor
 
@@ -40,17 +42,60 @@ Factors we have: average segment speed,
 # "SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962", "SEPTA16963" "SEPTA15815" "SEPTA16964" "SEPTA15817" # Olney & 7th to Olney & Front
 # "SEPTA372", "SEPTA15911" "NA", "SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913", "SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919"
 
+
+#create_stops()
+stops_w_ridership <- st_read("https://github.com/andrewsimpsonphl/transit_segmentation/raw/master/data/stops_ridership.geojson") %>% 
+    mutate_if(is.factor, as.character) %>% 
+    mutate(route_list = as.list(strsplit(as.character(route_str), ",")))
+#create_routes()
+routes_w_ridership <- st_read("https://github.com/andrewsimpsonphl/transit_segmentation/raw/master/data/routes_ridership.geojson") %>% 
+    mutate_if(is.factor, as.character)
+# import links
+links <- st_read("https://github.com/andrewsimpsonphl/transit_segmentation/raw/master/data/links_with_stops.geojson")
+link_stop_data <- links %>% mutate(fromto = as.character(fromto), secondLocationID = as.character(secondLocationID)) %>% 
+    mutate(stop_list = as.list(strsplit(as.character(stop_str), ","))) 
+# import APC data
+apc_data <- read.csv("./data/combined_apc_dataset.csv") %>%  
+    mutate(stop_id = paste0(agency_id, stop_id)) %>% 
+    mutate(dwell_time = case_when(
+        agency_id == "NJT" ~ dwell_time * 60,
+        TRUE ~ dwell_time
+    ))
+
+alltracts <- st_read("https://opendata.arcgis.com/datasets/8bc0786524a4486bb3cf0f9862ad0fbf_0.geojson")
+#restrict to just tracts that stops are in
+
+
+#pulling the acs data
+acs_trans <- c("B08301_001", #workers
+              "B08301_002", #means of transportation to work: car
+              "B08301_003", #means of transportation to work: car, drove alone
+              "B08301_010", #means of transportation to work: public transit
+              "B08301_011", #means of transportation to work: public transit, bus
+              "B08301_012", #means of transportation to work: public transit, subway
+              "B08301_013", #means of transportation to work: public transit, commuter rail
+              "B08301_014", #means of transportation to work: public transit, light rail/trolley
+              "B08301_016", #means of transportation to work: taxicab
+              "B08301_018", #means of transportation to work: bicycle
+              "B08301_019", #means of transportation to work: walked
+              "B08301_021" #means of transportation to work: wfh
+              )
+
 ```
 
 ```{r}
-library(leaflet)
-rand_lng = function(n = 10) rnorm(n, -93.65, .01)
-rand_lat = function(n = 10) rnorm(n, 42.0285, .01)
-m = leaflet() %>% addTiles() %>% addCircles(rand_lng(50), rand_lat(50), radius = runif(50, 10, 200))
-m
+# map of routes that exist in this corridor
+leaflet()
+    addProviderTiles(providers$CartoDB.Positron) %>% 
+    addPolylines(data = link_stop_data, color = "#4377bc", weight = 4, layerId = link_stop_data$fromto, opacity = 0.5)
 ```
 
 ### Corridor Level Descriptive Stats
+
+```{r}
+
+```
+
 
 ### Corridor/Route Level Stats
 
