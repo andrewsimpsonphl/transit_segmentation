@@ -82,7 +82,8 @@ nest_segments <- function(coded_links, stops) {
 #import apc trip data
 import_apc <- function() {
   #apc_trip_data <- read_feather("./data/preped_apc_data.feather")
-  apc_trip_data <- read.csv("./data/combined_apc_dataset.csv")
+  apc_trip_data <- read.csv("./data/combined_apc_dataset.csv") %>% 
+    mutate(stop_id = paste0(agency_id, stop_id))
   return(apc_trip_data)
 }
 #apc_trip_data <- import_apc()
@@ -121,10 +122,12 @@ nest_trip_data_v2 <- function(filtered_dat) {
 #nested_trip_dat = nest_trip_data_v2(filter_trip_list(apc_data, stop_list))
 #nested_apc_df <- nested_trip_dat[[2]][[2]]
 
+# calc_pass_v2 returns corridor level analytics on a trip by trip basis; used in further processing of corridor-level statistics
 # magic
 calc_pass_v2 <- function(nested_apc_df, list) {
   
   # arrange by stop sequence and then slice
+  # to- do - seperate out the slicing into a seperate function
   x <- nested_apc_df %>%
     as_tibble() %>% 
     arrange(stop_seq) %>%
