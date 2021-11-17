@@ -200,30 +200,28 @@ find_trip_dat_v2 <- function(apc_trip_data, stop_list) {
     ungroup()  %>%
     lazy_dt() %>%
     dt_unnest(calculated_pass) %>% 
-    na_if(0) %>% 
-    as_tibble()
+    #na_if(0) %>% # no clue why this was here
+    as_tibble() %>% 
+    filter(run > as.duration(0))
   
+  # previously used to skip the BLVD Direct - ignore for now
+  # if(final_dat$route_id == 500){
+  #   # do nothing for Direct Bus
+  #   return(final_dat)
+  # } else{
+  #   #print(final_dat$route_id)
+  #   final_dat <- final_dat %>% filter(run > as.duration(0)) # filter out trips that only make 1 stop on the corridor
+  #   return(final_dat)
+  # }
+  # 
+  # gc()
   
-  if(final_dat$route_id == 500){
-    # do nothing for Direct Bus
-    return(final_dat)
-  } else{
-    #print(final_dat$route_id)
-    final_dat <- final_dat %>% filter(run > as.duration(0)) # filter out trips that only make 1 stop on the corridor
-    return(final_dat)
-  }
-
-  gc()
+  return(final_dat)
 }
 
 
-find_stop_dat <- function(apc_trip_data = apc_data, stop_list) {
-  filtered_dat <- filter_trip_list(apc_trip_data, stop_list)
-  
-  output <- filtered_dat %>% filter(stop_id %in% stop_list)
-  
-  return(output)
-}
+
+
 
 
 #list <- c()
@@ -552,6 +550,25 @@ analyze_segment_route_direction_hourly <- function(trip_dat) {
 # avg_dwell <- dwell_available %>% 
 #   group_by() %>% 
 #   summarise(dwell_per_person = mean(dwell_fix, na.rm = TRUE))
+adjust_velocity <- function(apc_data){
+  output<- apc_data %>% 
+    mutate(velocity = case_when(
+      velocity <= 0 ~ NA_real_,
+      velocity == Inf ~ NA_real_,
+      velocity > 60 ~ NA_real_,
+      TRUE ~ as.numeric(velocity))
+    )
+  
+  return(output)
+}
+
+find_stop_dat <- function(apc_trip_data = apc_data, stop_list) {
+  filtered_dat <- filter_trip_list(apc_trip_data, stop_list) %>% adjust_velocity()
+  
+  output <- filtered_dat %>% filter(stop_id %in% stop_list)
+  
+  return(output)
+}
 
 analyze_stops_daily <- function(stop_trip_dat) {
   output <- stop_trip_dat %>% group_by(stop_id, stop_name, stop_lat, stop_lon) %>% 
@@ -562,6 +579,7 @@ analyze_stops_daily <- function(stop_trip_dat) {
               total_offs = sum(offs, na.rm = TRUE), 
               avg_load = mean(load, na.rm = TRUE),
               avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_speed = mean(velocity, na.rm = TRUE),
               avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>% 
     mutate_at(c(6:11), round) %>% 
     arrange(stop_name)
@@ -576,6 +594,7 @@ analyze_stops_routes_daily <- function(stop_trip_dat) {
               total_offs = sum(offs, na.rm = TRUE), 
               avg_load = mean(load, na.rm = TRUE),
               avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_speed = mean(velocity, na.rm = TRUE),
               avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>%     
     mutate_if(is.double, round)  
 }
@@ -607,6 +626,7 @@ analyze_stops_routes_hourbin <- function(stop_trip_dat) {
               total_offs = sum(offs, na.rm = TRUE), 
               avg_load = mean(load, na.rm = TRUE),
               avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_speed = mean(velocity, na.rm = TRUE),
               avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>%     
     mutate_if(is.double, round)
 }
@@ -621,7 +641,8 @@ analyze_stops_routes_hourly <- function(stop_trip_dat) {
               total_ons = sum(ons, na.rm = TRUE), 
               total_offs = sum(offs, na.rm = TRUE), 
               avg_load = mean(load, na.rm = TRUE),
-              avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell = mean(dwell_time, na.rm = TRUE),
+              avg_speed = mean(velocity, na.rm = TRUE),
               avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>%     
     mutate_if(is.double, round)
 }
