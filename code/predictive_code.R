@@ -15,7 +15,7 @@ nested_trip_dat <- nest_trip_data_v2(filter_trip_list(apc_data, stop_list))
 # run calc_pass on each set of data to get corridor level descriptive stats for each trip                     
 dat <- lazy_dt(run_passenger_data_v3(nested_trip_dat, stop_list)) %>%
   ungroup()  %>%
-  as_tibble() 
+  as_tibble()
 
 dat2 <- dat %>% unnest(calculated_pass)
 

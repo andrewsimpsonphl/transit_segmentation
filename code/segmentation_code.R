@@ -92,7 +92,10 @@ adjust_dwell_and_velo <- function(apc_data) {
   
   dat <- apc_data %>% 
     mutate(     #I have no idea what's going on here so I'm going to try to create a simple variable below
-      
+        dwell_time = case_when(
+          agency_id == "NJT" ~ dwell_time * 60,
+          TRUE ~ dwell_time),
+        
       dwell_on = case_when(
         ons > 0 ~ ons * dwell_per_on + dwell_constant,
         ons <= 0 ~ 0),

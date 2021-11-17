@@ -57,12 +57,9 @@ coordinates = link_stop_data$geometry
 file_output <- NULL
     
 # import APC data
-apc_data <- read.csv("./data/combined_apc_dataset.csv") %>%  
-    mutate(stop_id = paste0(agency_id, stop_id)) %>% 
-    mutate(dwell_time = case_when(
-        agency_id == "NJT" ~ dwell_time * 60,
-        TRUE ~ dwell_time
-    ))
+#apc_data <- read.csv("./data/combined_apc_dataset.csv") %>%  
+#    mutate(stop_id = paste0(agency_id, stop_id)) 
+apc_data <- import_apc()
 
 create_stops <- function() {
     stop_data <- st_read("./data/spring_2019_shp/4f34c6b9-ba39-4c63-9f54-8d44c7320d5c202047-1-1yyct9k.fqq8.shp") %>% 
@@ -439,19 +436,19 @@ server <- function(input, output, session) {
         stop_list <- data$stop_list %>% unlist() %>% as.character() %>% unique()
         print(stop_list)
         
-        trip_dat <- (find_trip_dat_v2(apc_data, stop_list)) %>% 
-            rowwise() %>% 
-            mutate(dwell_est = case_when(
-                        dwell_sum >=0 ~ dwell_sum,
-                        TRUE ~ as.duration(ons_offs * 4.8)),
-                   run_minus_dwell = case_when(
-                       dwell_est > 0 ~ run - dwell_est,
-                       TRUE ~ run),
-                   adj_speed = distance_traveled / (as.numeric(run_minus_dwell) / 60 / 60)
-            ) %>% 
-            mutate(adj_speed = case_when(
-                adj_speed >0 & adj_speed != Inf & adj_speed < 50 ~ adj_speed
-            ))
+        trip_dat <- (find_trip_dat_v2(apc_data, stop_list)) #%>% 
+            #rowwise() %>% 
+            # mutate(dwell_est = case_when(
+            #             dwell_sum >=0 ~ dwell_sum,
+            #             TRUE ~ as.duration(ons_offs * 4.8)),
+            #        run_minus_dwell = case_when(
+            #            dwell_est > 0 ~ run - dwell_est,
+            #            TRUE ~ run),
+            #        adj_speed = distance_traveled / (as.numeric(run_minus_dwell) / 60 / 60)
+            # ) %>% 
+            # mutate(adj_speed = case_when(
+            #     adj_speed >0 & adj_speed != Inf & adj_speed < 50 ~ adj_speed
+            # ))
         
     
         #print(trip_dat)
