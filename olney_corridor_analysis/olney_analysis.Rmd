@@ -32,6 +32,7 @@ library(leaflet.extras)
 
 options(tigris_class = "sf") # tells tidycensus to download Census geometries in the sf or Simple Feature format
 
+apc_data <- import_apc()
 
 find_trip_dat_v2 <- function(apc_trip_data, stop_list) {
   
@@ -106,22 +107,7 @@ acs_trans <- c("B08301_001", #workers
               "B08301_021" #means of transportation to work: wfh
               )
 
-trip_dat <- (find_trip_dat_v2(apc_data, stop_list)) %>% 
-            rowwise() %>% 
-            mutate(dwell_est = case_when(     #I have no idea what's going on here so I'm going to try to create a simple variable below
-                        dwell_sum >=0 ~ dwell_sum,
-                        TRUE ~ as.duration(ons_offs * 4.8)),
-                   run_minus_dwell = case_when(
-                       dwell_est > 0 ~ run - dwell_est,
-                       TRUE ~ run),
-                   adj_speed = distance_traveled / (as.numeric(run_minus_dwell) / 60 / 60),
-                   dwell_calc = case_when(
-                     ons_total>offs_total ~ (ons_total-offs_total)*4.8,
-                     ons_total<=offs_total ~ offs_total*4.8)
-            ) %>% 
-            mutate(adj_speed = case_when(
-                adj_speed >0 & adj_speed != Inf & adj_speed < 50 ~ adj_speed
-            ))
+trip_dat <- (find_trip_dat_v2(apc_data, stop_list))
 
 analytics <- analyze_segment(trip_dat)
 route_analytics <- analyze_segment_route(trip_dat)

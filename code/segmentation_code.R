@@ -77,14 +77,91 @@ nest_segments <- function(coded_links, stops) {
 
 #nested_segments <- nest_segments(coded_links, stops)
 
-## @knitr compile_dat functions
+dwell_per_on = 3.8
+dwell_per_off = 1.3 # dwell time for off-only
+dwell_constant = 6
+
+
+adjust_dwell_and_velo <- function(apc_data) {
+  
+  # function that estimates dwell time based on forumla we've developed
+  # known limitations - there are some places with unexplained extremely high dwell time observed
+  # this deal with beginning of line locations but not end of line
+  # allows for use of dwell_est in place of dwell_time and extrapolatese what dwell should generally be
+  # not tested on NJT stops - expect dwell to be higher there
+  
+  dat <- apc_data %>% 
+    mutate(     #I have no idea what's going on here so I'm going to try to create a simple variable below
+      
+      dwell_on = case_when(
+        ons > 0 ~ ons * dwell_per_on + dwell_constant,
+        ons <= 0 ~ 0),
+      dwell_off = case_when(
+        offs > 0 ~ offs * dwell_per_off + dwell_constant,
+        offs <= 0 ~ 0),
+      
+      dwell_est = case_when(
+        stop_seq == 1 ~ NA_real_,
+        dwell_on >= dwell_off ~ dwell_on,
+        dwell_on < dwell_off ~ dwell_off),
+      
+      dwell_source = case_when(
+        dwell_on >= dwell_off ~ "ons",
+        dwell_on < dwell_off ~ "offs"),
+      
+      run_minus_dwell = case_when(
+        dwell_est > 0 ~ runtime - dwell_est,
+        TRUE ~ runtime),
+      
+    )
+  
+  output<- dat %>% 
+    mutate(velocity = case_when(
+      velocity <= 0 ~ NA_real_,
+      velocity == Inf ~ NA_real_,
+      velocity > 60 ~ NA_real_,
+      TRUE ~ as.numeric(velocity)),
+      velo_minus_dwell = delta_miles / (as.numeric(run_minus_dwell) / 60 / 60)
+    )
+  
+  return(output)
+}
+
+# output <- apc_trip_data %>% adjust_dwell_and_velo()
+# test <- output %>% 
+#   filter(source == 'infodev') %>% 
+#   filter(stop_seq >1) %>% 
+#   filter(dwell_time < 60 & dwell_est >0 & dwell_time >0 ) %>% 
+#   filter(ons + offs > 0)
+# 
+# test_ons <- test %>% filter(dwell_source == "ons") %>% 
+#   mutate(diff = dwell_est - dwell_time)
+# 
+# test3 <- test2 %>% group_by(route_id) %>% 
+#   summarise(diff_mean = mean(diff, na.rm = TRUE))
+# 
+# test_offs <- test %>% filter(dwell_source == "offs") %>% 
+#   mutate(diff = dwell_est - dwell_time, na.rm = TRUE)
+# 
+# test5 <- test4 %>% group_by(route_id) %>% 
+#   summarise(diff_mean = mean(diff))
+# 
+# mean(test_ons$diff, na.rm = TRUE)
+# mean(test_offs$diff, na.rm = TRUE)
+# 
+# ggplot(test, aes(x = (dwell_time), y = (dwell_est), group = dwell_source, color = dwell_source)) + geom_point() + geom_smooth(method=lm , se=FALSE)
+# 
+# ggplot(test_ons, aes(x= ons, y= diff)) + geom_point()
 
 #import apc trip data
 import_apc <- function() {
   #apc_trip_data <- read_feather("./data/preped_apc_data.feather")
   apc_trip_data <- read.csv("./data/combined_apc_dataset.csv") %>% 
     mutate(stop_id = paste0(agency_id, stop_id))
-  return(apc_trip_data)
+  
+  output <- apc_trip_data %>% adjust_dwell_and_velo()
+  
+  return(output)
 }
 #apc_trip_data <- import_apc()
 
@@ -157,7 +234,8 @@ calc_pass_v2 <- function(nested_apc_df, list) {
       distance_traveled = sum(delta_miles, na.rm = TRUE),
       n_stops = n(),
       avg_stop_spacing_ft = sum(delta_miles, na.rm = TRUE) / n() * 5280,
-      dwell_sum = as.duration(sum(dwell_time, na.rm = TRUE)),
+      dwell_sum = as.duration(sum(dwell_time, na.rm = TRUE)), # observed dwell time (infodev routes)
+      dwell_est = as.duration(sum(dwell_est, na.rm = TRUE)), # new estimated dwell value
       ons_total = sum(ons),
       offs_total = sum(offs),
       max_entry_load = max(entry_load),
@@ -374,11 +452,11 @@ analyze_segment <- function(trip_dat) {
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
-      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
-      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
-      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
-      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
-      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2)
+      #avg_adj_speed = mean(adj_speed, na.rm = TRUE), #adjusted velo = velo-dwell needs works
+      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
+      avg_speed_25_pct = round(quant_num(avg_speed, 0.25), 2),
+      avg_speed_75_pct = round(quant_num(avg_speed, 0.75), 2),
+      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2)
     )
 }
 
@@ -396,11 +474,11 @@ analyze_segment_route <- function(trip_dat) {
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
-      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
-      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
-      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
-      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
-      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2)
+      #avg_adj_speed = mean(adj_speed, na.rm = TRUE), #adjusted velo = velo-dwell needs works
+      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
+      avg_speed_25_pct = round(quant_num(avg_speed, 0.25), 2),
+      avg_speed_75_pct = round(quant_num(avg_speed, 0.75), 2),
+      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2)
     )
 }
 
@@ -429,11 +507,11 @@ analyze_segment_hourbin <- function(trip_dat) {
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
-      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
-      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
-      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
-      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
-      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2)
+      #avg_adj_speed = mean(adj_speed, na.rm = TRUE), #adjusted velo = velo-dwell needs works
+      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
+      avg_speed_25_pct = round(quant_num(avg_speed, 0.25), 2),
+      avg_speed_75_pct = round(quant_num(avg_speed, 0.75), 2),
+      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2)
     )
 }
 
@@ -462,11 +540,11 @@ analyze_segment_route_hourly <- function(trip_dat) {
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
-      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
-      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
-      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
-      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
-      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2),
+      #avg_adj_speed = mean(adj_speed, na.rm = TRUE), #adjusted velo = velo-dwell needs works
+      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
+      avg_speed_25_pct = round(quant_num(avg_speed, 0.25), 2),
+      avg_speed_75_pct = round(quant_num(avg_speed, 0.75), 2),
+      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2),
       avg_run = hms::as_hms(round(mean(run, na.rm = TRUE)))
     )
 }
@@ -496,11 +574,11 @@ analyze_segment_hourly <- function(trip_dat) {
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
-      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
-      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
-      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
-      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
-      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2)
+      #avg_adj_speed = mean(adj_speed, na.rm = TRUE), #adjusted velo = velo-dwell needs works
+      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
+      avg_speed_25_pct = round(quant_num(avg_speed, 0.25), 2),
+      avg_speed_75_pct = round(quant_num(avg_speed, 0.75), 2),
+      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2)
     )
 }
 
@@ -529,11 +607,11 @@ analyze_segment_route_direction_hourly <- function(trip_dat) {
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
-      avg_adj_speed = mean(adj_speed, na.rm = TRUE),
-      adj_speed_10_pct = round(quant_num(adj_speed, 0.1), 2),
-      adj_speed_25_pct = round(quant_num(adj_speed, 0.25), 2),
-      adj_speed_75_pct = round(quant_num(adj_speed, 0.75), 2),
-      adj_speed_90_pct = round(quant_num(adj_speed, 0.9), 2),
+      #avg_adj_speed = mean(adj_speed, na.rm = TRUE), #adjusted velo = velo-dwell needs works
+      avg_speed_10_pct = round(quant_num(avg_speed, 0.1), 2),
+      avg_speed_25_pct = round(quant_num(avg_speed, 0.25), 2),
+      avg_speed_75_pct = round(quant_num(avg_speed, 0.75), 2),
+      avg_speed_90_pct = round(quant_num(avg_speed, 0.9), 2),
       avg_run = hms::as_hms(round(mean(run, na.rm = TRUE)))
     )
 }
@@ -550,17 +628,7 @@ analyze_segment_route_direction_hourly <- function(trip_dat) {
 # avg_dwell <- dwell_available %>% 
 #   group_by() %>% 
 #   summarise(dwell_per_person = mean(dwell_fix, na.rm = TRUE))
-adjust_velocity <- function(apc_data){
-  output<- apc_data %>% 
-    mutate(velocity = case_when(
-      velocity <= 0 ~ NA_real_,
-      velocity == Inf ~ NA_real_,
-      velocity > 60 ~ NA_real_,
-      TRUE ~ as.numeric(velocity))
-    )
-  
-  return(output)
-}
+
 
 find_stop_dat <- function(apc_trip_data = apc_data, stop_list) {
   filtered_dat <- filter_trip_list(apc_trip_data, stop_list) %>% adjust_velocity()
