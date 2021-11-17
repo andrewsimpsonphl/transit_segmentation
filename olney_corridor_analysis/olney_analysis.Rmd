@@ -8,21 +8,44 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-source("./code/segmentation_code.R")
+source("https://raw.githubusercontent.com/andrewsimpsonphl/transit_segmentation/master/code/segmentation_code.R")
 
-library(rmarkdown)
 library(tinytex)
-library(tidyverse)
+library(tidyverse); library(tidycensus)
 library(reactable) ; library(shiny)
 library(sf) ; library(sp)
 library(tidyverse)
 library(rgeos)
 library(xlsx)
 library(kableExtra)
-library(rphl)
+#devtools::install_github("CityOfPhiladelphia/rphl")
+#library(rphl) can't seem to install rphl
 library(viridis)
 library(gridExtra)
 library(scales)
+library(leaflet)
+#devtools::install_github("rstudio/leaflet.mapboxgl")
+#library(leaflet.mapboxgl)
+library(leaflet.extras)
+
+options(tigris_class = "sf") # tells tidycensus to download Census geometries in the sf or Simple Feature format
+
+
+find_trip_dat_v2 <- function(apc_trip_data, stop_list) {
+  
+  filtered_dat <- filter_trip_list(apc_trip_data, stop_list)
+  nested_trip_dat <- nest_trip_data_v2(filtered_dat)
+  print(paste("Running passenger data for", count(nested_trip_dat %>% as_tibble()), "trips", sep = " "))
+  
+  final_dat <- lazy_dt(run_passenger_data_v3(nested_trip_dat, stop_list)) %>%
+    ungroup()  %>%
+    lazy_dt() %>%
+    dt_unnest(calculated_pass) %>% # got rid of na_if(0) %>% 
+    as_tibble()
+  gc()
+  return(final_dat)
+}
+
 
 ```
 
@@ -31,26 +54,109 @@ library(scales)
 
 ### Broad Descriptive Stats
 * Info on the corridor, which bus routes run through it (18,26), the neighborhood around it, basic population?
-Factors we have: average segment speed, 
+Tactors we have: average segment speed, stop spacing (avg_stop_spacing_ft), ons/offs, average load, max entry load (max # of people on first? load), dwell time
 * Map of corridor? Automated using leaflet? maybe kind of tricky
 * Could use tidycensus to pull in basic descriptive info on the corridor
 
 ```{r}
-# "NA", SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA28699", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381","SEPTA15795", "SEPTA373","SEPTA382","SEPTA15910"
-# "SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962", "SEPTA16963" "SEPTA15815" "SEPTA16964" "SEPTA15817" # Olney & 7th to Olney & Front
-# "SEPTA372", "SEPTA15911" "NA", "SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913", "SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919"
+# "NA", "SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA28699", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381","SEPTA15795", "SEPTA373","SEPTA382","SEPTA15910" # Broad-7th
+# "SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962", "SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817" # 7th-Front
+# "SEPTA372", "SEPTA15911", "NA", "SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913", "SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919" #Chelten-Broad
+
+stop_list <- c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA28699", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381","SEPTA15795", "SEPTA373","SEPTA382","SEPTA15910","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962", "SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA372", "SEPTA15911", "SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913", "SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919")
+
+#create_stops()
+#Note: downloading these from gh doesn't work on the Phila.gov internet for whatever reason
+stops_w_ridership <- st_read("https://github.com/andrewsimpsonphl/transit_segmentation/raw/master/data/stops_ridership.geojson") %>% 
+    mutate_if(is.factor, as.character) %>% 
+    mutate(route_list = as.list(strsplit(as.character(route_str), ",")))
+#create_routes()
+routes_w_ridership <- st_read("https://github.com/andrewsimpsonphl/transit_segmentation/raw/master/data/routes_ridership.geojson") %>% 
+    mutate_if(is.factor, as.character)
+# import links
+links <- st_read("https://github.com/andrewsimpsonphl/transit_segmentation/raw/master/data/links_with_stops.geojson") 
+link_stop_data <- links %>% mutate(fromto = as.character(fromto), secondLocationID = as.character(secondLocationID)) %>% 
+    mutate(stop_list = as.list(strsplit(as.character(stop_str), ","))) 
+# import APC data
+apc_data <- read.csv("C:/Users/Zoe.Yoo/OneDrive - City of Philadelphia/transit_segmentation/data/combined_apc_dataset.csv") %>%  
+    mutate(stop_id = paste0(agency_id, stop_id)) %>% 
+    mutate(dwell_time = case_when(
+        agency_id == "NJT" ~ dwell_time * 60,
+        TRUE ~ dwell_time
+    ))
+
+alltracts <- st_read("https://opendata.arcgis.com/datasets/8bc0786524a4486bb3cf0f9862ad0fbf_0.geojson")
+#restrict to just tracts that stops are in
+
+
+#pulling the acs data
+acs_trans <- c("B08301_001", #workers
+              "B08301_002", #means of transportation to work: car
+              "B08301_003", #means of transportation to work: car, drove alone
+              "B08301_010", #means of transportation to work: public transit
+              "B08301_011", #means of transportation to work: public transit, bus
+              "B08301_012", #means of transportation to work: public transit, subway
+              "B08301_013", #means of transportation to work: public transit, commuter rail
+              "B08301_014", #means of transportation to work: public transit, light rail/trolley
+              "B08301_016", #means of transportation to work: taxicab
+              "B08301_018", #means of transportation to work: bicycle
+              "B08301_019", #means of transportation to work: walked
+              "B08301_021" #means of transportation to work: wfh
+              )
+
+trip_dat <- (find_trip_dat_v2(apc_data, stop_list)) %>% 
+            rowwise() %>% 
+            mutate(dwell_est = case_when(     #I have no idea what's going on here so I'm going to try to create a simple variable below
+                        dwell_sum >=0 ~ dwell_sum,
+                        TRUE ~ as.duration(ons_offs * 4.8)),
+                   run_minus_dwell = case_when(
+                       dwell_est > 0 ~ run - dwell_est,
+                       TRUE ~ run),
+                   adj_speed = distance_traveled / (as.numeric(run_minus_dwell) / 60 / 60),
+                   dwell_calc = case_when(
+                     ons_total>offs_total ~ (ons_total-offs_total)*4.8,
+                     ons_total<=offs_total ~ offs_total*4.8)
+            ) %>% 
+            mutate(adj_speed = case_when(
+                adj_speed >0 & adj_speed != Inf & adj_speed < 50 ~ adj_speed
+            ))
+
+analytics <- analyze_segment(trip_dat)
+route_analytics <- analyze_segment_route(trip_dat)
+binned_analytics <- suppressWarnings(analyze_segment_hourbin(trip_dat))
+hourly_analytics <- suppressWarnings(analyze_segment_hourly(trip_dat))
+hourly_route_analytics <- suppressWarnings(analyze_segment_route_hourly(trip_dat))
+hourly_route_direction_analytics <- suppressWarnings(analyze_segment_route_direction_hourly(trip_dat))
+
 
 ```
 
 ```{r}
-library(leaflet)
-rand_lng = function(n = 10) rnorm(n, -93.65, .01)
-rand_lat = function(n = 10) rnorm(n, 42.0285, .01)
-m = leaflet() %>% addTiles() %>% addCircles(rand_lng(50), rand_lat(50), radius = runif(50, 10, 200))
-m
+
+stops <- 
+routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% trip_dat$route_id)
+
+# map of routes that exist in this corridor
+leaflet() %>% 
+  setView(lng = -75.164012, lat = 39.952533, zoom = 12) %>% 
+  addProviderTiles(providers$Stamen.Toner) %>% 
+  addPolylines(data = routes, color = "#4377bc", weight = 4, layerId = link_stop_data$fromto, opacity = 0.5)
 ```
 
 ### Corridor Level Descriptive Stats
+
+```{r}
+
+ggplot(route_analytics, aes(y = daily_ridership, x = route_id, label = daily_ridership)) + 
+  geom_bar(stat = "identity", fill = "skyblue") +
+  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+  scale_y_continuous(name = "Total Riders Served", n.breaks = 8, limits = c(0, max(route_analytics$daily_ridership) * 1.1)) + 
+  scale_x_discrete(name = "Route Number") + 
+  labs(title = paste0("The Corridor Serves ", round(sum(analytics$daily_ridership)), " Riders per Day")) +
+  theme(text = element_text(size = 9))
+
+```
+
 
 ### Corridor/Route Level Stats
 
