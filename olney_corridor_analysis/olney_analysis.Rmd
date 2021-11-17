@@ -8,6 +8,8 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+#test test test 
+
 source("https://raw.githubusercontent.com/andrewsimpsonphl/transit_segmentation/master/code/segmentation_code.R")
 
 library(tinytex)
