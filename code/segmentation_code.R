@@ -112,8 +112,12 @@ adjust_dwell_and_velo <- function(apc_data) {
         dwell_on >= dwell_off ~ "ons",
         dwell_on < dwell_off ~ "offs"),
       
+      dwell_hybrid = case_when(
+        is.na(dwell_time) ~ dwell_est,
+        TRUE ~ dwell_time),
+      
       run_minus_dwell = case_when(
-        dwell_est > 0 ~ runtime - dwell_est,
+        dwell_hybrid > 0 ~ runtime - dwell_hybrid,
         TRUE ~ runtime),
       
     )
@@ -124,7 +128,12 @@ adjust_dwell_and_velo <- function(apc_data) {
       velocity == Inf ~ NA_real_,
       velocity > 60 ~ NA_real_,
       TRUE ~ as.numeric(velocity)),
-      velo_minus_dwell = delta_miles / (as.numeric(run_minus_dwell) / 60 / 60)
+      velo_minus_dwell = delta_miles / (as.numeric(run_minus_dwell) / 60 / 60), 
+      velo_minus_dwell = case_when(
+        velo_minus_dwell <= 0 ~ NA_real_,
+        velo_minus_dwell == Inf ~ NA_real_,
+        velo_minus_dwell > 60 ~ NA_real_,
+        TRUE ~ as.numeric(velo_minus_dwell))
     )
   
   return(output)
@@ -239,6 +248,7 @@ calc_pass_v2 <- function(nested_apc_df, list) {
       avg_stop_spacing_ft = sum(delta_miles, na.rm = TRUE) / n() * 5280,
       dwell_sum = as.duration(sum(dwell_time, na.rm = TRUE)), # observed dwell time (infodev routes)
       dwell_est = as.duration(sum(dwell_est, na.rm = TRUE)), # new estimated dwell value
+      dwell_hybrid = as.duration(sum(dwell_hybrid, na.rm = TRUE)), # uses observed dwell where possible, estimates otherwise
       ons_total = sum(ons),
       offs_total = sum(offs),
       max_entry_load = max(entry_load),
@@ -453,6 +463,7 @@ analyze_segment <- function(trip_dat) {
       on_off = (sum(ons_offs, na.rm = TRUE)),
       dwell_observed_mean = mean(dwell_sum, na.rm = TRUE),
       dwell_predicted_mean = mean(dwell_est, na.rm = TRUE),
+      dwell_hybrid_mean = mean(dwell_hybrid, na.rm = TRUE),
       dwell_per_onoff = round(on_off / sum(dwell_est), 2),
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
@@ -477,6 +488,7 @@ analyze_segment_route <- function(trip_dat) {
       on_off = (sum(ons_offs, na.rm = TRUE)),
       dwell_observed_mean = mean(dwell_sum, na.rm = TRUE),
       dwell_predicted_mean = mean(dwell_est, na.rm = TRUE),
+      dwell_hybrid_mean = mean(dwell_hybrid, na.rm = TRUE),
       dwell_per_onoff = round(on_off / sum(dwell_est), 2),
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
@@ -512,6 +524,7 @@ analyze_segment_hourbin <- function(trip_dat) {
       on_off = (sum(ons_offs, na.rm = TRUE)),
       dwell_observed_mean = mean(dwell_sum, na.rm = TRUE),
       dwell_predicted_mean = mean(dwell_est, na.rm = TRUE),
+      dwell_hybrid_mean = mean(dwell_hybrid, na.rm = TRUE),
       dwell_per_onoff = round(on_off / sum(dwell_est), 2),
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
@@ -547,6 +560,7 @@ analyze_segment_route_hourly <- function(trip_dat) {
       on_off = (sum(ons_offs, na.rm = TRUE)),
       dwell_observed_mean = mean(dwell_sum, na.rm = TRUE),
       dwell_predicted_mean = mean(dwell_est, na.rm = TRUE),
+      dwell_hybrid_mean = mean(dwell_hybrid, na.rm = TRUE),
       dwell_per_onoff = round(on_off / sum(dwell_est), 2),
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
@@ -583,6 +597,7 @@ analyze_segment_hourly <- function(trip_dat) {
       on_off = (sum(ons_offs, na.rm = TRUE)),
       dwell_observed_mean = mean(dwell_sum, na.rm = TRUE),
       dwell_predicted_mean = mean(dwell_est, na.rm = TRUE),
+      dwell_hybrid_mean = mean(dwell_hybrid, na.rm = TRUE),
       dwell_per_onoff = round(on_off / sum(dwell_est), 2),
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
@@ -618,6 +633,7 @@ analyze_segment_route_direction_hourly <- function(trip_dat) {
       on_off = (sum(ons_offs, na.rm = TRUE)),
       dwell_observed_mean = mean(dwell_sum, na.rm = TRUE),
       dwell_predicted_mean = mean(dwell_est, na.rm = TRUE),
+      dwell_hybrid_mean = mean(dwell_hybrid, na.rm = TRUE),
       dwell_per_onoff = round(on_off / sum(dwell_est), 2),
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
@@ -661,9 +677,11 @@ analyze_stops_daily <- function(stop_trip_dat) {
               total_ons = sum(ons, na.rm = TRUE), 
               total_offs = sum(offs, na.rm = TRUE), 
               avg_load = mean(load, na.rm = TRUE),
-              avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_observed = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_estimated = mean(dwell_est, na.rm = TRUE), 
               avg_speed = mean(velocity, na.rm = TRUE),
-              avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>% 
+              avg_dwell_per_pass_obs = round(avg_dwell_observed / (total_ons + total_offs), 2),
+              avg_dwell_per_pass_est = round(avg_dwell_estimated / (total_ons + total_offs), 2)) %>% 
     mutate_at(c(6:11), round) %>% 
     arrange(stop_name)
 }
