@@ -29,7 +29,7 @@ params:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-#source("./code/segmentation_code.R")
+source("./code/segmentation_code.R")
 
 library(rmarkdown)
 library(tinytex)

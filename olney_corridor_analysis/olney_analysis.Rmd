@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #test test test 
 
-source("https://raw.githubusercontent.com/andrewsimpsonphl/transit_segmentation/master/code/segmentation_code.R")
+source("../code/segmentation_code.R")
 
 library(tinytex)
 library(tidyverse); library(tidycensus)
@@ -20,17 +20,25 @@ library(tidyverse)
 library(rgeos)
 library(xlsx)
 library(kableExtra)
-#devtools::install_github("CityOfPhiladelphia/rphl")
-#library(rphl) can't seem to install rphl
+library(rphl) 
 library(viridis)
 library(gridExtra)
 library(scales)
 library(leaflet)
-#devtools::install_github("rstudio/leaflet.mapboxgl")
-#library(leaflet.mapboxgl)
+library(leaflet.mapboxgl)
 library(leaflet.extras)
 
 options(tigris_class = "sf") # tells tidycensus to download Census geometries in the sf or Simple Feature format
+
+import_apc <- function() {
+  #apc_trip_data <- read_feather("./data/preped_apc_data.feather")
+  apc_trip_data <- read.csv("../data/combined_apc_dataset.csv") %>% 
+    mutate(stop_id = paste0(agency_id, stop_id))
+  
+  output <- apc_trip_data %>% adjust_dwell_and_velo()
+  
+  return(output)
+}
 
 apc_data <- import_apc()
 
@@ -57,7 +65,7 @@ find_trip_dat_v2 <- function(apc_trip_data, stop_list) {
 
 ### Broad Descriptive Stats
 * Info on the corridor, which bus routes run through it (18,26), the neighborhood around it, basic population?
-Tactors we have: average segment speed, stop spacing (avg_stop_spacing_ft), ons/offs, average load, max entry load (max # of people on first? load), dwell time
+Factors we have: average segment speed, stop spacing (avg_stop_spacing_ft), ons/offs, average load, max entry load (max # of people on first? load), dwell time
 * Map of corridor? Automated using leaflet? maybe kind of tricky
 * Could use tidycensus to pull in basic descriptive info on the corridor
 
@@ -70,23 +78,24 @@ stop_list <- c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA157
 
 #create_stops()
 #Note: downloading these from gh doesn't work on the Phila.gov internet for whatever reason
-stops_w_ridership <- st_read("https://github.com/andrewsimpsonphl/transit_segmentation/raw/master/data/stops_ridership.geojson") %>% 
+stops_w_ridership <- st_read("../data/stops_ridership.geojson") %>% 
     mutate_if(is.factor, as.character) %>% 
     mutate(route_list = as.list(strsplit(as.character(route_str), ",")))
 #create_routes()
-routes_w_ridership <- st_read("https://github.com/andrewsimpsonphl/transit_segmentation/raw/master/data/routes_ridership.geojson") %>% 
+routes_w_ridership <- st_read("../data/routes_ridership.geojson") %>% 
     mutate_if(is.factor, as.character)
 # import links
-links <- st_read("https://github.com/andrewsimpsonphl/transit_segmentation/raw/master/data/links_with_stops.geojson") 
+links <- st_read("../data/links_with_stops.geojson") 
 link_stop_data <- links %>% mutate(fromto = as.character(fromto), secondLocationID = as.character(secondLocationID)) %>% 
     mutate(stop_list = as.list(strsplit(as.character(stop_str), ","))) 
 # import APC data
-apc_data <- read.csv("C:/Users/Zoe.Yoo/OneDrive - City of Philadelphia/transit_segmentation/data/combined_apc_dataset.csv") %>%  
+apc_data <- read.csv("../data/combined_apc_dataset.csv") %>%  
     mutate(stop_id = paste0(agency_id, stop_id)) %>% 
     mutate(dwell_time = case_when(
         agency_id == "NJT" ~ dwell_time * 60,
         TRUE ~ dwell_time
     ))
+apc_data <- adjust_dwell_and_velo(apc_data)
 
 alltracts <- st_read("https://opendata.arcgis.com/datasets/8bc0786524a4486bb3cf0f9862ad0fbf_0.geojson")
 #restrict to just tracts that stops are in
@@ -121,14 +130,13 @@ hourly_route_direction_analytics <- suppressWarnings(analyze_segment_route_direc
 
 ```{r}
 
-stops <- 
 routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% trip_dat$route_id)
 
 # map of routes that exist in this corridor
-leaflet() %>% 
-  setView(lng = -75.164012, lat = 39.952533, zoom = 12) %>% 
-  addProviderTiles(providers$Stamen.Toner) %>% 
-  addPolylines(data = routes, color = "#4377bc", weight = 4, layerId = link_stop_data$fromto, opacity = 0.5)
+# leaflet() %>% 
+#   setView(lng = -75.164012, lat = 39.952533, zoom = 12) %>% 
+#   addProviderTiles(providers$Stamen.Toner) %>% 
+#   addPolylines(data = routes, color = "#4377bc", weight = 4, layerId = link_stop_data$fromto, opacity = 0.5)
 ```
 
 ### Corridor Level Descriptive Stats
@@ -143,22 +151,126 @@ ggplot(route_analytics, aes(y = daily_ridership, x = route_id, label = daily_rid
   labs(title = paste0("The Corridor Serves ", round(sum(analytics$daily_ridership)), " Riders per Day")) +
   theme(text = element_text(size = 9))
 
+
+
+ggplot(route_analytics, aes(x=route_id, y = trips, label = trips)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+  ylab("Daily Trips (2019)") + 
+  scale_x_discrete(name = "Route Number") + 
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "", title = paste0("The Corridor Serves ", sum(route_analytics$trips, na.rm = TRUE), " Trips per Day")) + 
+  #theme_phl() + 
+  theme(legend.position = "top")+
+  theme(text = element_text(size = 9))
+
+ggplot(route_analytics, aes(x=route_id, y = service_hours, label = round(service_hours))) + 
+  geom_bar(position="dodge", stat="identity") + 
+  geom_text(position = "dodge", stat = "identity", vjust = -0.75) +
+  #ggtitle("Market and JFK serve over 1,100 Bus Trips per Day") + 
+  ylab("Service Hours Per Day") + 
+  scale_x_discrete(name = "Route Number") + 
+  scale_fill_phl(palette = "main", discrete = T) +
+  labs(fill= "", title = paste0("The Corridor Serves ", round(sum(route_analytics$service_hours, na.rm = TRUE), 1), " Service Hours per Day")) + 
+  #theme_phl() + 
+  theme(legend.position = "top")+
+  theme(text = element_text(size = 9))
+
+
+ggplot(binned_analytics, aes(x = timeframe, y = daily_ridership, label = daily_ridership)) + 
+  geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
+  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+  scale_y_continuous(name = "Total Riders Served", n.breaks = 5) + #, limits = c(0, max(binned_analytics$avg_speed_90_pct) * 1.1)) +
+  scale_x_discrete(name = element_blank()) +
+  labs(title = "Ridership by Period (All Routes)")+
+  theme(text = element_text(size = 9))
+
+
+ggplot(hourly_route_analytics, aes(x = trip_hour, y = daily_ridership, group=route_id, fill=route_id)) + 
+  geom_bar(position = "stack", stat = "identity") +
+  #geom_point(shape=21, size=3) + 
+  scale_color_viridis(discrete = TRUE) +
+  scale_y_continuous(name = "Riders Served", n.breaks = 8) +
+  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+  labs(title = "Hourly Ridership by Route (all directions)") +
+  theme(text = element_text(size = 9))
+
 ```
 
 
 ### Corridor/Route Level Stats
+
+```{r}
+
+ggplot(hourly_analytics) + 
+  geom_line(aes(x = trip_hour, y = avg_adj_speed)) +
+  geom_point(aes(x = trip_hour, y = avg_adj_speed), shape=21, size=3) + 
+  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8) +
+  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+  labs(title = "Hourly Speed (All Routes)")+
+  theme(text = element_text(size = 9))
+
+```
+
 
 
 ## Sub-Corridor Analysis
 
 * try creating a dataframe of multiple sub-corridors
 
+
+
 ### Chelten to Broad
 
+```{r}
+
+stop_cb <- c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919")
+
+trip_dat_cb <- (find_trip_dat_v2(apc_data, stop_cb))
+
+analytics_cb <- analyze_segment(trip_dat_cb)
+route_analytics_cb <- analyze_segment_route(trip_dat_cb)
+binned_analytics <- suppressWarnings(analyze_segment_hourbin(trip_dat_cb))
+hourly_analytics <- suppressWarnings(analyze_segment_hourly(trip_dat_cb))
+hourly_route_analytics <- suppressWarnings(analyze_segment_route_hourly(trip_dat_cb))
+hourly_route_direction_analytics <- suppressWarnings(analyze_segment_route_direction_hourly(trip_dat_cb))
+
+ggplot(route_analytics_cb, aes(y = daily_ridership, x = route_id, label = daily_ridership)) + 
+  geom_bar(stat = "identity", fill = "skyblue") +
+  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+  scale_y_continuous(name = "Total Riders Served", n.breaks = 8, limits = c(0, max(route_analytics$daily_ridership) * 1.1)) + 
+  scale_x_discrete(name = "Route Number") + 
+  labs(title = paste0("The Corridor Serves ", round(sum(analytics$daily_ridership)), " Riders per Day")) +
+  theme(text = element_text(size = 9))
+
+
+
+```
 
 
 ### Broad to 7th
 
+```{r}
+
+stop_b7 <- c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA28699", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA382", "SEPTA15910")
+
+trip_dat_b7 <- (find_trip_dat_v2(apc_data, stop_b7))
+
+analytics_b7 <- analyze_segment(trip_dat_b7)
+
+```
+
 
 ### 7th to Front
+
+```{r}
+
+stop_7f <- c("SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")
+
+trip_dat_7f <- (find_trip_dat_v2(apc_data, stop_7f))
+
+analytics_7f <- analyze_segment(trip_dat_7f)
+
+```
+
 

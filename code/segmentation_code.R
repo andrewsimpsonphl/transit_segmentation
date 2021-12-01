@@ -91,7 +91,7 @@ adjust_dwell_and_velo <- function(apc_data) {
   # not tested on NJT stops - expect dwell to be higher there
   
   dat <- apc_data %>% 
-    mutate(     #I have no idea what's going on here so I'm going to try to create a simple variable below
+    mutate(     
         dwell_time = case_when(
           agency_id == "NJT" ~ dwell_time * 60,
           TRUE ~ dwell_time),
@@ -464,7 +464,7 @@ analyze_segment <- function(trip_dat) {
       dwell_observed_mean = mean(dwell_sum, na.rm = TRUE),
       dwell_predicted_mean = mean(dwell_est, na.rm = TRUE),
       dwell_hybrid_mean = mean(dwell_hybrid, na.rm = TRUE),
-      dwell_per_onoff = round(on_off / sum(dwell_est), 2),
+      dwell_per_onoff = round(on_off / sum(dwell_hybrid), 2),
       onoff_per_trip = round( on_off / n(), 2),
       onoff_per_tripstop = round( on_off / n() / max(n_stops), 2),
       avg_segment_speed = mean(avg_speed, na.rm = TRUE),
@@ -662,7 +662,7 @@ analyze_segment_route_direction_hourly <- function(trip_dat) {
 
 
 find_stop_dat <- function(apc_trip_data = apc_data, stop_list) {
-  filtered_dat <- filter_trip_list(apc_trip_data, stop_list) %>% adjust_velocity()
+  filtered_dat <- filter_trip_list(apc_trip_data, stop_list) %>% adjust_dwell_and_velo
   
   output <- filtered_dat %>% filter(stop_id %in% stop_list)
   
