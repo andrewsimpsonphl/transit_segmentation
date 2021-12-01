@@ -101,12 +101,12 @@ ggplot(route_analytics, aes(y = daily_ridership, x = route_id, label = daily_rid
   labs(title = paste0("The Corridor Serves ", round(sum(analytics$daily_ridership)), " Riders per Day")) +
   theme(text = element_text(size = 9))
 
-ggplot(route_analytics, aes(x = route_id, y = avg_adj_speed)) + 
+ggplot(route_analytics, aes(x = route_id, y = avg_segement_speed)) + 
   geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
   geom_errorbar(data = route_analytics, stat = "identity", ymin = route_analytics$adj_speed_10_pct, ymax = route_analytics$adj_speed_90_pct, colour="orange", alpha=0.6, size=1.3, width = 0.4) + 
-  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8, limits = c(0, max(route_analytics$adj_speed_90_pct) * 1.1)) +
+  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8, limits = c(0, max(route_analytics$adj_speed_90_pct) * 1.1)) +
   scale_x_discrete(name = "Route Number") + 
-  labs(title = paste0("The Average Bus Travels at ", round(mean(analytics$avg_adj_speed), 1), " MPH on the Corridor")) +
+  labs(title = paste0("The Average Bus Travels at ", round(mean(analytics$avg_segement_speed), 1), " MPH on the Corridor")) +
   theme(text = element_text(size = 9))
 ```
 
@@ -158,10 +158,10 @@ ggplot(binned_analytics, aes(x = timeframe, y = daily_ridership, label = daily_r
   labs(title = "Ridership by Period (All Routes)")+
   theme(text = element_text(size = 9))
 
-ggplot(binned_analytics, aes(x = timeframe, y = avg_adj_speed)) + 
+ggplot(binned_analytics, aes(x = timeframe, y = avg_segement_speed)) + 
   geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
   geom_errorbar(data = binned_analytics, stat = "identity", ymin = binned_analytics$adj_speed_10_pct, ymax = binned_analytics$adj_speed_90_pct, colour="orange", alpha=0.6, size=1.3, width = 0.4) + 
-  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8, limits = c(0, max(binned_analytics$adj_speed_90_pct) * 1.1)) +
+  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8, limits = c(0, max(binned_analytics$adj_speed_90_pct) * 1.1)) +
   scale_x_discrete(name = element_blank()) +
   labs(title = "Speed by Period (All Routes)")+
   theme(text = element_text(size = 9))
@@ -184,18 +184,18 @@ ggplot(binned_analytics, aes(x = timeframe, y = avg_adj_speed)) +
 ```
 ```{r hourly_plots, echo=FALSE, warning=FALSE}
 ggplot(hourly_analytics) + 
-  geom_line(aes(x = trip_hour, y = avg_adj_speed)) +
-  geom_point(aes(x = trip_hour, y = avg_adj_speed), shape=21, size=3) + 
-  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8) +
+  geom_line(aes(x = trip_hour, y = avg_segment_speed)) +
+  geom_point(aes(x = trip_hour, y = v), shape=21, size=3) + 
+  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8) +
   scale_x_continuous(name = "Hour", breaks = c(0:23)) +
   labs(title = "Hourly Speed (All Routes)")+
   theme(text = element_text(size = 9))
 
-ggplot(hourly_route_analytics, aes(x = trip_hour, y = avg_adj_speed, group=route_id, color=route_id)) + 
+ggplot(hourly_route_analytics, aes(x = trip_hour, y = avg_segment_speed, group=route_id, color=route_id)) + 
   geom_line() +
   geom_point(shape=21, size=3) + 
   #scale_color_viridis(discrete = TRUE) +
-  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8) +
+  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8) +
   scale_x_continuous(name = "Hour", breaks = c(0:23)) +
   labs(title = "Hourly Speed by Route (all directions)") +
   theme(text = element_text(size = 9))
@@ -215,11 +215,11 @@ ggplot(hourly_route_analytics, aes(x = trip_hour, y = daily_ridership, group=rou
 ```{r hourly_direction, echo=FALSE, warning=FALSE, message=FALSE}
 # break into plots by route
 
-ggplot(hourly_route_direction_analytics, aes(x = trip_hour, y = avg_adj_speed, color=direction_id)) + 
+ggplot(hourly_route_direction_analytics, aes(x = trip_hour, y = avg_segment_speed, color=direction_id)) + 
   geom_line() +
   geom_point(size=1.5) + 
   #scale_color_viridis(discrete = TRUE) +
-  scale_y_continuous(name = "Speed (MPH) - Excludes Dwell Time", n.breaks = 8) +
+  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8) +
   scale_x_continuous(name = "Hour", breaks = c(0:23)) +
   labs(title = "Hourly Speed by Route/Direction") +
   theme(text = element_text(size = 9)) +
