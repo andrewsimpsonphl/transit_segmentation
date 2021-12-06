@@ -1,7 +1,7 @@
 ---
 title: "Olney Corridor Analysis"
 author: "Zoe Yoo"
-date: "11/10/2021"
+date: "12/6/2021"
 output: 
   html_document: 
     toc: true
@@ -104,7 +104,6 @@ ridership_by_route_dir_plot <- function(hourly_route_direction_analytics) {
 * Info on the corridor, which bus routes run through it (18,26), the neighborhood around it, basic population?
 Factors we have: average segment speed, stop spacing (avg_stop_spacing_ft), ons/offs, average load, max entry load (max # of people on first? load), dwell time
 * Map of corridor? Automated using leaflet? maybe kind of tricky
-* Could use tidycensus to pull in basic descriptive info on the corridor
 
 ```{r}
 
@@ -271,7 +270,7 @@ ggplot(hourly_route_analytics, aes(x = trip_hour, y = daily_ridership, group=rou
 speed_by_route_dir_plot(hourly_route_direction_analytics)
 ridership_by_route_dir_plot(hourly_route_direction_analytics)
 
-ggplot(hourly_route_direction_analytics, aes(x = trip_hour, y = avg_run, fill=direction_id)) + 
+ggplot(hourly_route_direction_analytics %>% subset(avg_run >=0), aes(x = trip_hour, y = avg_run, fill=direction_id)) + 
   geom_bar(position = "stack", stat = "identity") +
   #geom_point(size=3) + 
   #scale_color_viridis(discrete = TRUE) +
