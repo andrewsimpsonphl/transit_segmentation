@@ -2,10 +2,12 @@
 title: "Olney Corridor Analysis"
 author: "Zoe Yoo"
 date: "12/6/2021"
-output: 
-  html_document: 
-    toc: true
-    toc_float: true
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    toc: yes
+    toc_float: yes
     code_folding: hide
 ---
 
@@ -101,13 +103,15 @@ ridership_by_route_dir_plot <- function(hourly_route_direction_analytics) {
 
 ### Broad Descriptive Stats
 
-* Info on the corridor, which bus routes run through it (18,26), the neighborhood around it, basic population?
-Factors we have: average segment speed, stop spacing (avg_stop_spacing_ft), ons/offs, average load, max entry load (max # of people on first? load), dwell time
+The Olney transit corridor runs along Olney Ave between Chelten Avenue and Front Street. The 18 and 26 are the two routes that run along the corridor, both crossing North Broad Street past the Olney Transportation Center. The Transportation Center has a stop for the Broad Street Line, while there is also a stop for the Fox Station Regional Rail line at the end of the corridor adjacent to Olney & Front Street. There are 49 total bus stops along the corridor, with the average bus trip running past 22 stops spanning 2.3 miles.
+
+
+* Factors we have: average segment speed, stop spacing (avg_stop_spacing_ft), ons/offs, average load, max entry load (max # of people on first? load), dwell time
 * Map of corridor? Automated using leaflet? maybe kind of tricky
 
-```{r}
+```{r data_map, message=FALSE}
 
-stop_list <- I(list(c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919"),c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA28699", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910"),c("SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")))
+stop_list <- I(list(c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919"),c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910"),c("SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")))
 subcorridor_name <- c("Olney and Chelten - Olney and Broad", "Olney and Broad - Olney and 7th", "Olney and 7th - Olney and Front")
 subcorridor_id <- c("CB","B7","7F")
 subcorridors <- data.frame(subcorridor_id,subcorridor_name,stop_list)
@@ -115,14 +119,14 @@ subcorridors <- data.frame(subcorridor_id,subcorridor_name,stop_list)
 stop_list <- unlist(stop_list)
 
 #create_stops()
-stops_w_ridership <- st_read("../data/stops_ridership.geojson") %>% 
+stops_w_ridership <- st_read("../data/stops_ridership.geojson", quiet = TRUE) %>% 
     mutate_if(is.factor, as.character) %>% 
     mutate(route_list = as.list(strsplit(as.character(route_str), ",")))
 #create_routes()
-routes_w_ridership <- st_read("../data/routes_ridership.geojson") %>% 
+routes_w_ridership <- st_read("../data/routes_ridership.geojson", quiet = TRUE) %>% 
     mutate_if(is.factor, as.character)
 # import links
-links <- st_read("../data/links_with_stops.geojson") 
+links <- st_read("../data/links_with_stops.geojson", quiet = TRUE) 
 link_stop_data <- links %>% mutate(fromto = as.character(fromto), secondLocationID = as.character(secondLocationID)) %>% 
     mutate(stop_list = as.list(strsplit(as.character(stop_str), ","))) 
 # import APC data
@@ -134,7 +138,7 @@ apc_data <- read.csv("../data/combined_apc_dataset.csv") %>%
     ))
 apc_data <- adjust_dwell_and_velo(apc_data)
 
-alltracts <- st_read("https://opendata.arcgis.com/datasets/8bc0786524a4486bb3cf0f9862ad0fbf_0.geojson")
+alltracts <- st_read("https://opendata.arcgis.com/datasets/8bc0786524a4486bb3cf0f9862ad0fbf_0.geojson", quiet = TRUE)
 #restrict to just tracts that stops are in
 
 
@@ -162,27 +166,28 @@ hourly_analytics <- suppressWarnings(analyze_segment_hourly(trip_dat))
 hourly_route_analytics <- suppressWarnings(analyze_segment_route_hourly(trip_dat))
 hourly_route_direction_analytics <- suppressWarnings(analyze_segment_route_direction_hourly(trip_dat))
 
-
-```
-
-```{r}
-
-routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% trip_dat$route_id)
+routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% trip_dat$route_id) %>% 
+  
 
 # map of routes that exist in this corridor
-# leaflet() %>% 
-#   setView(lng = -75.164012, lat = 39.952533, zoom = 12) %>% 
-#   addProviderTiles(providers$Stamen.Toner) %>% 
-#   addPolylines(data = routes, color = "#4377bc", weight = 4, layerId = link_stop_data$fromto, opacity = 0.5)
+leaflet() %>%
+  setView(lng = -75.14511002073658, lat = 40.03905345107288, zoom = 12) %>%
+  addProviderTiles(providers$Stamen.Toner) #%>%
+  #addPolylines(data = routes, color = "#4377bc", weight = 4, layerId = link_stop_data$fromto, opacity = 0.5)
+
+
 ```
+
 
 ### Corridor Level Descriptive Stats
 
-```{r}
+These charts illustrate characteristics for the Olney corridor as a whole, such as average speed and ridership. Average speed, as well as riderhship, vary both by route and by time of day.
+
+```{r corridor_level}
 
 table_1 <- route_analytics %>% bind_rows(analytics %>% mutate(route_id = "Total"))
  
-kable(table_1, booktabs = TRUE, align = 'c') %>%
+kable(table_1, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
   kable_styling(latex_options = "scale_down")  %>%
   row_spec(dim(table_1)[1], bold = T) %>% # format last row
   column_spec(1, italic = T) %>%  # format first column
@@ -196,12 +201,12 @@ ggplot(route_analytics, aes(x = route_id, y = avg_segment_speed)) +
   labs(title = paste0("The Average Bus Travels at ", round(mean(analytics$avg_segment_speed), 1), " MPH on the Corridor")) +
   theme(text = element_text(size = 9))
 
-ggplot(binned_analytics, aes(x = timeframe, y = daily_ridership, label = daily_ridership)) + 
-  geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
-  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
-  scale_y_continuous(name = "Total Riders Served", n.breaks = 5) + #, limits = c(0, max(binned_analytics$avg_speed_90_pct) * 1.1)) +
-  scale_x_discrete(name = element_blank()) +
-  labs(title = "Ridership by Period (All Routes)")+
+ggplot(hourly_analytics) + 
+  geom_line(aes(x = trip_hour, y = avg_segment_speed)) +
+  geom_point(aes(x = trip_hour, y = avg_segment_speed), shape=21, size=3) + 
+  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8) +
+  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+  labs(title = "Hourly Speed (All Routes)")+
   theme(text = element_text(size = 9))
 
 ggplot(binned_analytics, aes(x = timeframe, y = avg_segment_speed)) + 
@@ -212,20 +217,24 @@ ggplot(binned_analytics, aes(x = timeframe, y = avg_segment_speed)) +
   labs(title = "Speed by Period (All Routes)")+
   theme(text = element_text(size = 9))
 
-ggplot(hourly_analytics) + 
-  geom_line(aes(x = trip_hour, y = avg_segment_speed)) +
-  geom_point(aes(x = trip_hour, y = avg_segment_speed), shape=21, size=3) + 
-  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8) +
-  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
-  labs(title = "Hourly Speed (All Routes)")+
+ggplot(binned_analytics, aes(x = timeframe, y = daily_ridership, label = daily_ridership)) + 
+  geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
+  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+  scale_y_continuous(name = "Total Riders Served", n.breaks = 5) + #, limits = c(0, max(binned_analytics$avg_speed_90_pct) * 1.1)) +
+  scale_x_discrete(name = element_blank()) +
+  labs(title = "Ridership by Period (All Routes)")+
   theme(text = element_text(size = 9))
+
 
 ```
 
 
 ### Corridor/Route Level Stats
 
-```{r}
+Here, we separate overall corridor statistics by route to better understand the makeup of Olney bus traffic. The first three graphs, which cover ridership (both average daily ridership and average ridership per hour), the number of trips, and number of service hours per route, aggregate for both directions of each route. Next, average hourly ridership is again shown, but divided by whether the bus was Eastbound or Westbound (as Olney runs E-W). Average corridor running time, or the time it takes for a bus to make one trip along the corridor, and average hourly speed are also differentiated by direction.
+
+
+```{r corridor-route-level}
 grid.arrange(ncol=2,
 ggplot(route_analytics, aes(y = daily_ridership, x = route_id, label = daily_ridership)) + 
   geom_bar(stat = "identity", fill = "skyblue") +
@@ -248,7 +257,7 @@ ggplot(route_analytics, aes(x=route_id, y = trips, label = trips)) +
 
 ggplot(route_analytics, aes(x=route_id, y = service_hours, label = round(service_hours))) + 
   geom_bar(position="dodge", stat="identity") + 
-  geom_text(position = "dodge", stat = "identity", vjust = -0.75) +
+  geom_text(position = "dodge", stat = "identity", vjust = -0.25) +
   #ggtitle("Market and JFK serve over 1,100 Bus Trips per Day") + 
   ylab("Service Hours Per Day") + 
   scale_x_discrete(name = "Route Number") + 
@@ -267,31 +276,34 @@ ggplot(hourly_route_analytics, aes(x = trip_hour, y = daily_ridership, group=rou
   labs(title = "Hourly Ridership by Route (all directions)") +
   theme(text = element_text(size = 9))
 
-speed_by_route_dir_plot(hourly_route_direction_analytics)
 ridership_by_route_dir_plot(hourly_route_direction_analytics)
 
 ggplot(hourly_route_direction_analytics %>% subset(avg_run >=0), aes(x = trip_hour, y = avg_run, fill=direction_id)) + 
   geom_bar(position = "stack", stat = "identity") +
   #geom_point(size=3) + 
-  #scale_color_viridis(discrete = TRUE) +
+  #scale_fill_viridis(discrete = TRUE) +
   ylab("Average Running Time (Includes Dwell)") +
   scale_x_continuous(name = "Hour", breaks = c(0:23)) +
   labs(title = "Average Corridor Running Time by Route/Direction") +
   theme(text = element_text(size = 9)) +
   facet_wrap(~route_id + direction_id, ncol = 2) + 
-  theme(text = element_text(size = 9))  +
-  theme(axis.text.x = element_text(angle = 90))
+  #theme_phl(base_size = 9)
+  theme(text = element_text(size = 9), axis.text.x = element_text(angle = 90))
+
+speed_by_route_dir_plot(hourly_route_direction_analytics)
+
 
 ```
-
+*Note: average speed and running time are calculated for the entire running time, including dwell times.*
 
 
 ## Sub-Corridor Analysis
 
+There are three main "sub-corridors" within the Olney corridor: Chelten to Broad, which is the section west of Broad St, Broad to 7th, and 7th to Front, which are both east of Broad St.
 
 ### Chelten to Broad
 
-```{r}
+```{r chelten_broad, message=FALSE}
 
 
 stop_cb <- c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919")
@@ -321,7 +333,7 @@ ggplot(hourly_analytics_cb) +
   scale_x_continuous(name = "Hour", breaks = c(0:23)) +
   labs(title = "Hourly Speed (All Routes)")+
   theme(text = element_text(size = 9))
-  
+
 speed_by_route_dir_plot(hourly_route_direction_analytics_cb)
 
 ```
@@ -329,9 +341,9 @@ speed_by_route_dir_plot(hourly_route_direction_analytics_cb)
 
 ### Broad to 7th
 
-```{r}
+```{r broad_7th, message=FALSE}
 
-stop_b7 <- c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA28699", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910")
+stop_b7 <- c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910")
 
 trip_dat_b7 <- (find_trip_dat_v2(apc_data, stop_b7))
 
@@ -342,7 +354,7 @@ analytics_b7 <- analyze_segment(trip_dat_b7)
 
 ### 7th to Front
 
-```{r}
+```{r 7th_front, message=FALSE}
 
 stop_7f <- c("SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")
 
