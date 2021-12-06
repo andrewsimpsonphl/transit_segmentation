@@ -3,12 +3,12 @@ title: "Olney Corridor Analysis"
 author: "Zoe Yoo"
 date: "12/6/2021"
 output:
-  pdf_document:
-    toc: yes
   html_document:
     toc: yes
     toc_float: yes
     code_folding: hide
+  pdf_document:
+    toc: yes
 ---
 
 ```{r setup, include=FALSE, message=FALSE}
@@ -171,8 +171,8 @@ routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% trip_dat$rout
 
 # map of routes that exist in this corridor
 leaflet() %>%
-  setView(lng = -75.14511002073658, lat = 40.03905345107288, zoom = 12) %>%
-  addProviderTiles(providers$Stamen.Toner) #%>%
+  setView(lng = -75.14511, lat = 40.03905, zoom = 12) %>% 
+  addProviderTiles(providers$Stamen.Toner) 
   #addPolylines(data = routes, color = "#4377bc", weight = 4, layerId = link_stop_data$fromto, opacity = 0.5)
 
 
