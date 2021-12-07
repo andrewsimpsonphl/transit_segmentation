@@ -679,9 +679,9 @@ analyze_stops_daily <- function(stop_trip_dat) {
               avg_load = mean(load, na.rm = TRUE),
               avg_dwell_observed = mean(dwell_time, na.rm = TRUE), 
               avg_dwell_estimated = mean(dwell_est, na.rm = TRUE), 
+              avg_dwell_hybrid = mean(dwell_hybrid, na.rm = TRUE), 
               avg_speed = mean(velocity, na.rm = TRUE),
-              avg_dwell_per_pass_obs = round(avg_dwell_observed / (total_ons + total_offs), 2),
-              avg_dwell_per_pass_est = round(avg_dwell_estimated / (total_ons + total_offs), 2)) %>% 
+              avg_dwell_per_pass_hybrid = round(sum(dwell_hybrid, na.rm = TRUE) / (total_ons + total_offs), 2)) %>% 
     mutate_at(c(6:11), round) %>% 
     arrange(stop_name)
 }
@@ -694,9 +694,11 @@ analyze_stops_routes_daily <- function(stop_trip_dat) {
               total_ons = sum(ons, na.rm = TRUE), 
               total_offs = sum(offs, na.rm = TRUE), 
               avg_load = mean(load, na.rm = TRUE),
-              avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_observed = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_estimated = mean(dwell_est, na.rm = TRUE), 
+              avg_dwell_hybrid = mean(dwell_hybrid, na.rm = TRUE),             
               avg_speed = mean(velocity, na.rm = TRUE),
-              avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>%     
+              avg_dwell_per_pass_hybrid = round(sum(dwell_hybrid, na.rm = TRUE) / (total_ons + total_offs), 2)) %>% 
     mutate_if(is.double, round)  
 }
  
@@ -726,9 +728,11 @@ analyze_stops_routes_hourbin <- function(stop_trip_dat) {
               total_ons = sum(ons, na.rm = TRUE), 
               total_offs = sum(offs, na.rm = TRUE), 
               avg_load = mean(load, na.rm = TRUE),
-              avg_dwell = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_observed = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_estimated = mean(dwell_est, na.rm = TRUE), 
+              avg_dwell_hybrid = mean(dwell_hybrid, na.rm = TRUE),               
               avg_speed = mean(velocity, na.rm = TRUE),
-              avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>%     
+              avg_dwell_per_pass_hybrid = round(sum(dwell_hybrid, na.rm = TRUE) / (total_ons + total_offs), 2)) %>% 
     mutate_if(is.double, round)
 }
 
@@ -742,9 +746,11 @@ analyze_stops_routes_hourly <- function(stop_trip_dat) {
               total_ons = sum(ons, na.rm = TRUE), 
               total_offs = sum(offs, na.rm = TRUE), 
               avg_load = mean(load, na.rm = TRUE),
-              avg_dwell = mean(dwell_time, na.rm = TRUE),
+              avg_dwell_observed = mean(dwell_time, na.rm = TRUE), 
+              avg_dwell_estimated = mean(dwell_est, na.rm = TRUE), 
+              avg_dwell_hybrid = mean(dwell_hybrid, na.rm = TRUE),               
               avg_speed = mean(velocity, na.rm = TRUE),
-              avg_dwell_per_pass = round(avg_dwell / (total_ons + total_offs), 2)) %>%     
+              avg_dwell_per_pass_hybrid = round(sum(dwell_hybrid, na.rm = TRUE) / (total_ons + total_offs), 2)) %>% 
     mutate_if(is.double, round)
 }
 
