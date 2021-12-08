@@ -111,10 +111,38 @@ The Olney transit corridor runs along Olney Ave between Chelten Avenue and Front
 
 ```{r data_map, message=FALSE}
 
+# create a new section where we create subcorridor data
 stop_list <- I(list(c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919"),c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910"),c("SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")))
 subcorridor_name <- c("Olney and Chelten - Olney and Broad", "Olney and Broad - Olney and 7th", "Olney and 7th - Olney and Front")
 subcorridor_id <- c("CB","B7","7F")
 subcorridors <- data.frame(subcorridor_id,subcorridor_name,stop_list)
+
+# helper function that takes in a list of stops and the global apc_data data to run the find_trip_dat_v2 function 
+help_find_trip_dat <- function(list) {
+    find_trip_dat_v2(apc_data, list)
+    #print(paste("Analyzing trip", .$FINAL_ID))
+    #mem_used()
+}
+
+# map find_trip_dat across the corridors and save that data as dat
+subcorridors_dat <- subcorridors %>%
+  mutate(dat = map(stop_list, help_find_trip_dat),
+         analytics = map(dat, analyze_segment),
+         route_analytics = map(dat, analyze_segment_route))
+### ZOE - TRY WRITING MAP STATEMENTS FOLLOWING THESE TO CREATE THE BINNED, HOURLY, ETC. DATA SETS
+
+analytics_cb <-   analyze_segment(trip_dat_cb)
+route_analytics_cb <- analyze_segment_route(trip_dat_cb)
+binned_analytics_cb <- suppressWarnings(analyze_segment_hourbin(trip_dat_cb))
+hourly_analytics_cb <- suppressWarnings(analyze_segment_hourly(trip_dat_cb))
+hourly_route_analytics_cb <- suppressWarnings(analyze_segment_route_hourly(trip_dat_cb))
+hourly_route_direction_analytics_cb <- suppressWarnings(analyze_segment_route_direction_hourly(trip_dat_cb))
+
+
+
+
+
+
 
 stop_list <- unlist(stop_list)
 
@@ -304,8 +332,6 @@ There are three main "sub-corridors" within the Olney corridor: Chelten to Broad
 ### Chelten to Broad
 
 ```{r chelten_broad, message=FALSE}
-
-
 stop_cb <- c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919")
 
 trip_dat_cb <- (find_trip_dat_v2(apc_data, stop_cb))
