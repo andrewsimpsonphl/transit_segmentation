@@ -1,11 +1,5 @@
-stop_id,stop_name,stop_lat,stop_lon,routes,total_trips,avg_headway,total_ons,total_offs,avg_load,avg_dwell,avg_dwell_per_pass,stop_change
-SEPTA130,Walnut St & Broad St - MBNS,39.949303,-75.163657,"42,21,9,12",351,4,746,434,12,23,0.02,0
-SEPTA14079,Walnut St & 15th St,39.949576,-75.165805,"42,21,9,12",351,4,692,283,14,20,0.02,0
-SEPTA14080,Walnut St & 16th St,39.949775,-75.167399,"42,21,9,12",351,4,580,304,14,21,0.02,1
-SEPTA14081,Walnut St & 17th St,39.949975,-75.168968,"42,21,9,12",351,4,492,269,15,16,0.02,0
-SEPTA14084,Walnut St & 18th St,39.950148,-75.170456,"42,21,9,12",352,4,403,287,15,13,0.02,1
-SEPTA14085,Walnut St & 19th St,39.950374,-75.172108,"42,21,9,12",352,4,410,299,16,14,0.02,0
-SEPTA14086,Walnut St & 20th St,39.950574,-75.173643,"42,21,9,12",352,4,380,231,16,13,0.02,1
-SEPTA14088,Walnut St & 21st St,39.95081,-75.175531,"42,21,9,12",352,4,278,211,16,11,0.02,0
-SEPTA14089,Walnut St & 22nd St,39.951,-75.177172,"42,21,9,12",352,4,304,146,17,11,0.03,1
-SEPTA131,Walnut St & 23rd St,39.951145,-75.178305,"42,21,9",292,5,142,118,17,6,0.02,0
+stop_id,stop_name,stop_lat,stop_lon,routes,total_trips,avg_headway,total_ons,total_offs,avg_load,avg_dwell_observed,avg_dwell_estimated,avg_speed,avg_dwell_per_pass_obs,avg_dwell_per_pass_est,stop_change,TSP,farside,platform,alldoor,queue_jump
+SEPTA16489,Erie Av & Old York Rd,40.008727,-75.147706,"53,56",173,8,67,25,14,NA,6.748083185,10.21,NA,0.07,2,1,0,1,0,1
+SEPTA17419,Erie Av & Elder St - FS,40.009053,-75.149844,"53,56",173,8,171,20,13,NA,9.157907616,4.04,NA,0.05,1,1,0,0,0,0
+SEPTA21260,Erie Av & Broad St,40.009208,-75.151439,"53,56",173,8,1200,844,12,NA,33.36900974,7.26,NA,0.02,2,0,0,1,0,1
+SEPTA17038,Erie Av & 15th St,40.009408,-75.152998,"53,56",173,8,60,29,10,NA,6.002019208,9.59,NA,0.07,0,0,0,0,0,0

@@ -218,8 +218,8 @@ model_change <- function(import) {
         #dwell_hybrid = as.duration(sum(dwell_hybrid, na.rm = TRUE)), # uses observed dwell where possible, estimates otherwise
         travel_time = as.duration(sum(travel_time, na.rm = TRUE)),
         new_travel_time = as.duration(sum(new_travel_time, na.rm = TRUE)),
-        #new_ons_total = sum(new_ons),
-        #new_offs_total = sum(new_offs),
+        ons_total = sum(ons),
+        offs_total = sum(offs),
         max_entry_load = max(entry_load),
         avg_speed = mean(velocity, na.rm = TRUE),
         new_avg_speed_iso = mean(new_velo_minus_dwell, na.rm = TRUE),
@@ -227,10 +227,11 @@ model_change <- function(import) {
         max_load = max(load)) %>%
       as.data.frame() %>%
       #mutate(new_ons_offs = new_ons_total + new_offs_total) %>%
-      #mutate(new_ridership = max_entry_load + new_ons_total) %>%
+      mutate(ridership = max_entry_load + ons_total) %>%
       mutate(avg_speed = na_if(avg_speed, Inf)) %>% 
       mutate(new_full_run = new_dwell_est + new_travel_time,
-             run_delta = new_full_run - run)
+             run_delta = new_full_run - run,
+             pass_sec_saved = run_delta*ridership)
     
     return(output)
   }
