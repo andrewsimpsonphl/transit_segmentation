@@ -71,7 +71,7 @@ model_change <- function(import) {
     left_join(import) %>% 
     nest_trip_data_v2()
     
-  nested_apc_df <- test[[2]][[62]]
+  nested_apc_df <- test[[2]][[45]]
   
   # modified version of calc_pass_v2
   predict_trip <- function(nested_apc_df, stop_list) {
@@ -166,7 +166,7 @@ model_change <- function(import) {
             new_offs > 0 ~ new_offs * dwell_per_off + dwell_constant,
             new_offs <= 0 ~ 0),
           
-          new_dwell_est = case_when(
+          new_dwell_temp = case_when(
             stop_seq == 1 ~ NA_real_,
             new_dwell_on >= new_dwell_off ~ new_dwell_on,
             new_dwell_on < new_dwell_off ~ new_dwell_off),
@@ -175,11 +175,22 @@ model_change <- function(import) {
             new_dwell_on >= new_dwell_off ~ "new_ons",
             new_dwell_on < new_dwell_off ~ "new_offs"),
           
+          #estimate dwell again, using predicted improvements
+          new_dwell_est = ifelse(TSP == 1, new_dwell_temp * (1 - 0.1), new_dwell_temp),
+          new_dwell_est = ifelse(platform == 1, new_dwell_temp * (1 - 0.1), new_dwell_temp),
+          new_dwell_est = ifelse(farside == 1, new_dwell_temp * (1 - 0.1), new_dwell_temp),
+          new_dwell_est = ifelse(alldoor == 1, new_dwell_temp * (1 - 0.1), new_dwell_temp),
+          new_dwell_est = ifelse(queue_jump == 1, new_dwell_temp * (1 - 0.1), new_dwell_temp),
+          
+          # calculate dwell savings
+          estimated_dwell_improvement = dwell_hybrid - new_dwell_est,
+          
           # estimante time savings from the basic estimated_runtime_improvement variable
-          time_savings = (travel_time * (estimated_runtime_improvement/100) ),
+          travel_time_savings = (travel_time * (estimated_runtime_improvement/100) ),
+          dwell_time_savings = (dwell_hybrid * (estimated_dwell_improvement/100) ),
 
           # generate a new travel time value
-          new_travel_time = travel_time - time_savings
+          new_travel_time = travel_time - travel_time_savings
           
         ) %>% 
         mutate(velocity = case_when( # clean up velocity values
@@ -193,7 +204,8 @@ model_change <- function(import) {
             new_velo_minus_dwell <= 0 ~ NA_real_,
             new_velo_minus_dwell == Inf ~ NA_real_,
             new_velo_minus_dwell > 60 ~ NA_real_,
-            TRUE ~ as.numeric(new_velo_minus_dwell))
+            TRUE ~ as.numeric(new_velo_minus_dwell)),
+          estimted_velo_improvement = velo_minus_dwell - new_velo_minus_dwell
         )
     }
     
