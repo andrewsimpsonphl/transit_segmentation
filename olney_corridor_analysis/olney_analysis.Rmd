@@ -122,7 +122,6 @@ plot_hourly_speed <- function(df,id){
 # plot daily ridership for a specified subcorridor 
 plot_daily_ridership <- function(df, id) {
   a <- as.data.frame(subset(df$route_analytics, subcorridor_id==id))
-  b <- as.data.frame(subset(df$analytics, subcorridor_id==id))
   p <-  ggplot(a, aes(y = daily_ridership, x = route_id, label = daily_ridership)) + 
     geom_bar(stat = "identity", fill = "skyblue") +
     geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
@@ -133,6 +132,100 @@ plot_daily_ridership <- function(df, id) {
  return(p)
   
 }
+
+plot_daily_ridership_trips <- function(df,id){
+  a <- as.data.frame(subset(df$route_analytics, subcorridor_id==id))
+  grid.arrange(ncol=2,
+  ggplot(a, aes(y = daily_ridership, x = route_id, label = daily_ridership)) + 
+    geom_bar(stat = "identity", fill = "skyblue") +
+    geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+    scale_y_continuous(name = "Total Riders Served", n.breaks = 8, limits = c(0, max(a$daily_ridership) * 1.1)) + 
+    scale_x_discrete(name = "Route Number") + 
+    labs(title = paste0("The Corridor Serves ", round(sum(analytics$daily_ridership)), " Riders per Day")) +
+    theme(text = element_text(size = 9)),
+  ggplot(a, aes(x=route_id, y = trips, label = trips)) + 
+    geom_bar(position="dodge", stat="identity") + 
+    geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+    ylab("Daily Trips (2019)") + 
+    scale_x_discrete(name = "Route Number") + 
+    scale_fill_phl(palette = "main", discrete = T) +
+    labs(fill= "", title = paste0("The Corridor Serves ", sum(a$trips, na.rm = TRUE), " Trips per Day")) + 
+    #theme_phl() + 
+    theme(legend.position = "top")+
+    theme(text = element_text(size = 9))
+  )
+}
+
+plot_ridership_by_route <- function(df, id) {
+  a <- as.data.frame(subset(df$hourly_route_analytics, subcorridor_id==id))
+  ggplot(a, aes(x = trip_hour, y = daily_ridership, group=route_id, fill=route_id)) + 
+    geom_bar(position = "stack", stat = "identity") +
+    #geom_point(shape=21, size=3) + 
+    scale_color_viridis(discrete = TRUE) +
+    scale_y_continuous(name = "Riders Served", n.breaks = 8) +
+    scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+    labs(title = "Hourly Ridership by Route (all directions)") +
+    theme(text = element_text(size = 9))
+}
+
+plot_speed_by_period <- function(df,id) {
+  a <- as.data.frame(subset(df$binned_analytics, subcorridor_id==id))
+  p <- ggplot(a, aes(x = timeframe, y = avg_segment_speed)) + 
+    geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
+    geom_errorbar(data = binned_analytics, stat = "identity", ymin = binned_analytics$avg_speed_10_pct, ymax =
+                    binned_analytics$avg_speed_90_pct, colour="orange", alpha=0.6, size=1.3, width = 0.4) + 
+    scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8, 
+                       limits = c(0, max(binned_analytics$avg_speed_90_pct) * 1.1)) +
+    scale_x_discrete(name = element_blank()) +
+    labs(title = "Speed by Period (All Routes)")+
+    theme(text = element_text(size = 9))
+  return(p)
+}
+
+plot_ridership_by_period <- function(df,id) {
+  a <- as.data.frame(subset(df$binned_analytics, subcorridor_id==id))
+  p <- ggplot(a, aes(x = timeframe, y = daily_ridership, label = daily_ridership)) + 
+      geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
+      geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+      scale_y_continuous(name = "Total Riders Served", n.breaks = 5) + #, limits = c(0, max(binned_analytics$avg_speed_90_pct) * 1.1)) +
+      scale_x_discrete(name = element_blank()) +
+      labs(title = "Ridership by Period (All Routes)")+
+      theme(text = element_text(size = 9))
+  return(p)
+}
+
+plot_service_hrs <- function(df,id) {
+  a <- as.data.frame(subset(df$route_analytics, subcorridor_id==id))
+  p <- ggplot(a, aes(x=route_id, y = service_hours, label = round(service_hours))) + 
+    geom_bar(position="dodge", stat="identity") + 
+    geom_text(position = "dodge", stat = "identity", vjust = -0.25) +
+    #ggtitle("Market and JFK serve over 1,100 Bus Trips per Day") + 
+    ylab("Service Hours Per Day") + 
+    scale_x_discrete(name = "Route Number") + 
+    scale_fill_phl(palette = "main", discrete = T) +
+    labs(fill= "", title = paste0("The Corridor Serves ", round(sum(a$service_hours, na.rm = TRUE), 1), " Service Hours per Day")) + 
+    #theme_phl() + 
+    theme(legend.position = "top")+
+    theme(text = element_text(size = 9))
+  return(p)
+}
+
+plot_running_time <- function(df,id) {
+  a <- as.data.frame(subset(df$hourly_route_direction_analytics, subcorridor_id==id))
+  p <- ggplot(a %>% subset(avg_run >=0), aes(x = trip_hour, y = avg_run, fill=direction_id)) + 
+    geom_bar(position = "stack", stat = "identity") +
+    #geom_point(size=3) + 
+    #scale_fill_viridis(discrete = TRUE) +
+    ylab("Average Running Time (Includes Dwell)") +
+    scale_x_continuous(name = "Hour", breaks = c(0:23)) +
+    labs(title = "Average End-to-End Running Time by Route/Direction") +
+    theme(text = element_text(size = 9)) +
+    facet_wrap(~route_id + direction_id, ncol = 2) + 
+    #theme_phl(base_size = 9)
+    theme(text = element_text(size = 9), axis.text.x = element_text(angle = 90))
+  return(p)
+}
+
 ```
 
 
@@ -161,8 +254,12 @@ subcorridors_dat <- subcorridors %>%
          binned_analytics = map(dat, suppressWarnings(analyze_segment_hourbin)),
          hourly_analytics = map(dat, suppressWarnings(analyze_segment_hourly)),
          hourly_route_analytics = map(dat, suppressWarnings(analyze_segment_route_hourly)),
-         hourly_route_direction_analytics = map(dat,suppressWarnings(analyze_segment_route_direction_hourly))
+         hourly_route_direction_analytics = map(dat,suppressWarnings(analyze_segment_route_direction_hourly)),
   )
+
+# trying to map plots to subcorridors_dat -- think I messed up with the structure of the functions or something
+subcorridors_results <- subcorridors_dat %>% 
+  mutate(daily_ridership = map(subcorridors_dat, plot_daily_ridership))
 
 stop_list <- unlist(stop_list)
 
@@ -218,6 +315,15 @@ routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% trip_dat$rout
 
 ```
 
+```{r}
+
+
+
+
+
+```
+
+
 The Olney transit corridor runs along Olney Ave between Chelten Avenue and Front Street. The 18 and 26 are the two routes that run along the corridor, both crossing North Broad Street past the Olney Transportation Center. The Transportation Center has a stop for the Broad Street Line, while there is also a stop for the Fox Station Regional Rail line at the end of the corridor adjacent to Olney & Front Street. There are `length(subcorridors[[3]][[1]])` total bus stops along the corridor, with the average bus trip running past `round(mean(subcorridors_dat[[4]][[1]]$n_stops))` stops spanning `round(mean(subcorridors_dat[[4]][[1]]$distance_traveled),digits=2)` miles.
 
 ```{r leaflet_map, include=TRUE, message=FALSE}
@@ -256,22 +362,9 @@ kable(table_1, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),d
 
 plot_hourly_speed(subcorridors_dat,"OL")
 
-ggplot(binned_analytics, aes(x = timeframe, y = avg_segment_speed)) + 
-  geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
-  geom_errorbar(data = binned_analytics, stat = "identity", ymin = binned_analytics$avg_speed_10_pct, ymax = binned_analytics$avg_speed_90_pct, colour="orange", alpha=0.6, size=1.3, width = 0.4) + 
-  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8, limits = c(0, max(binned_analytics$avg_speed_90_pct) * 1.1)) +
-  scale_x_discrete(name = element_blank()) +
-  labs(title = "Speed by Period (All Routes)")+
-  theme(text = element_text(size = 9))
+plot_speed_by_period(subcorridors_dat, "OL")
 
-ggplot(binned_analytics, aes(x = timeframe, y = daily_ridership, label = daily_ridership)) + 
-  geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
-  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
-  scale_y_continuous(name = "Total Riders Served", n.breaks = 5) + #, limits = c(0, max(binned_analytics$avg_speed_90_pct) * 1.1)) +
-  scale_x_discrete(name = element_blank()) +
-  labs(title = "Ridership by Period (All Routes)")+
-  theme(text = element_text(size = 9))
-
+plot_ridership_by_period(subcorridors_dat, "OL")
 
 ```
 
@@ -282,60 +375,16 @@ Here, we separate overall corridor statistics by route to better understand the 
 
 
 ```{r corridor-route-level}
-grid.arrange(ncol=2,
-ggplot(route_analytics, aes(y = daily_ridership, x = route_id, label = daily_ridership)) + 
-  geom_bar(stat = "identity", fill = "skyblue") +
-  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
-  scale_y_continuous(name = "Total Riders Served", n.breaks = 8, limits = c(0, max(route_analytics$daily_ridership) * 1.1)) + 
-  scale_x_discrete(name = "Route Number") + 
-  labs(title = paste0("The Corridor Serves ", round(sum(analytics$daily_ridership)), " Riders per Day")) +
-  theme(text = element_text(size = 9)),
-ggplot(route_analytics, aes(x=route_id, y = trips, label = trips)) + 
-  geom_bar(position="dodge", stat="identity") + 
-  geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
-  ylab("Daily Trips (2019)") + 
-  scale_x_discrete(name = "Route Number") + 
-  scale_fill_phl(palette = "main", discrete = T) +
-  labs(fill= "", title = paste0("The Corridor Serves ", sum(route_analytics$trips, na.rm = TRUE), " Trips per Day")) + 
-  #theme_phl() + 
-  theme(legend.position = "top")+
-  theme(text = element_text(size = 9))
-)
 
-ggplot(route_analytics, aes(x=route_id, y = service_hours, label = round(service_hours))) + 
-  geom_bar(position="dodge", stat="identity") + 
-  geom_text(position = "dodge", stat = "identity", vjust = -0.25) +
-  #ggtitle("Market and JFK serve over 1,100 Bus Trips per Day") + 
-  ylab("Service Hours Per Day") + 
-  scale_x_discrete(name = "Route Number") + 
-  scale_fill_phl(palette = "main", discrete = T) +
-  labs(fill= "", title = paste0("The Corridor Serves ", round(sum(route_analytics$service_hours, na.rm = TRUE), 1), " Service Hours per Day")) + 
-  #theme_phl() + 
-  theme(legend.position = "top")+
-  theme(text = element_text(size = 9))
+plot_daily_ridership_trips(subcorridors_dat,"OL")
 
-ggplot(hourly_route_analytics, aes(x = trip_hour, y = daily_ridership, group=route_id, fill=route_id)) + 
-  geom_bar(position = "stack", stat = "identity") +
-  #geom_point(shape=21, size=3) + 
-  scale_color_viridis(discrete = TRUE) +
-  scale_y_continuous(name = "Riders Served", n.breaks = 8) +
-  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
-  labs(title = "Hourly Ridership by Route (all directions)") +
-  theme(text = element_text(size = 9))
+plot_service_hrs(subcorridors_dat,"OL")
+
+plot_ridership_by_route(subcorridors_dat, "OL")
 
 plot_ridership_by_route_dir(subcorridors_dat, "OL")
 
-ggplot(hourly_route_direction_analytics %>% subset(avg_run >=0), aes(x = trip_hour, y = avg_run, fill=direction_id)) + 
-  geom_bar(position = "stack", stat = "identity") +
-  #geom_point(size=3) + 
-  #scale_fill_viridis(discrete = TRUE) +
-  ylab("Average Running Time (Includes Dwell)") +
-  scale_x_continuous(name = "Hour", breaks = c(0:23)) +
-  labs(title = "Average End-to-End Running Time by Route/Direction") +
-  theme(text = element_text(size = 9)) +
-  facet_wrap(~route_id + direction_id, ncol = 2) + 
-  #theme_phl(base_size = 9)
-  theme(text = element_text(size = 9), axis.text.x = element_text(angle = 90))
+plot_running_time(subcorridors_dat, "OL")
 
 plot_speed_by_route_dir(subcorridors_dat, "OL")
 
@@ -366,11 +415,13 @@ plot_speed_by_route_dir(subcorridors_dat,"CB")
 
 ```{r broad_7th, message=FALSE}
 
-stop_b7 <- c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910")
+# stop_b7 <- c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910")
 
-trip_dat_b7 <- (find_trip_dat_v2(apc_data, stop_b7))
+plot_daily_ridership(subcorridors_dat, "B7")
 
-analytics_b7 <- analyze_segment(trip_dat_b7)
+plot_hourly_speed(subcorridors_dat, "B7")
+
+plot_speed_by_route_dir(subcorridors_dat,"B7")
 
 ```
 
@@ -379,11 +430,13 @@ analytics_b7 <- analyze_segment(trip_dat_b7)
 
 ```{r 7th_front, message=FALSE}
 
-stop_7f <- c("SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")
+#stop_7f <- c("SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")
 
-trip_dat_7f <- (find_trip_dat_v2(apc_data, stop_7f))
+plot_daily_ridership(subcorridors_dat, "7F")
 
-analytics_7f <- analyze_segment(trip_dat_7f)
+plot_hourly_speed(subcorridors_dat, "7F")
+
+plot_speed_by_route_dir(subcorridors_dat,"7F")
 
 ```
 
