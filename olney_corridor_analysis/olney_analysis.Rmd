@@ -32,12 +32,18 @@ library(leaflet)
 library(leaflet.mapboxgl)
 library(leaflet.extras)
 library(plotly)
+library(parallel)
+library(furrr)
 
 options(tigris_class = "sf") # tells tidycensus to download Census geometries in the sf or Simple Feature format
 
 ```
 
 ```{r functions, include=FALSE, message=FALSE}
+
+# ZOE - WE DON'T WANT TO HAVE SEPERATE VERSION OF THESE FUNCTIONS IN THIS FILE. 
+# WE REALLY JUST WANT TO PULL DIRECLY FROM segmentation_code. 
+# are there any changes you've made here or are they just copied over? If they're just copies, please delete
 
 import_apc <- function() {
   #apc_trip_data <- read_feather("./data/preped_apc_data.feather")
@@ -65,10 +71,13 @@ find_trip_dat_v2 <- function(apc_trip_data, stop_list) {
 }
 # helper function that takes in a list of stops and the global apc_data data to run the find_trip_dat_v2 function 
 help_find_trip_dat <- function(list) {
-    find_trip_dat_v2(apc_data, list)
+    suppressMessages(find_trip_dat_v2(apc_data, list))
     #print(paste("Analyzing trip", .$FINAL_ID))
     #mem_used()
 }
+
+
+## PLOT FUNCTIONS ##
 
 # plot daily ridership and trips 
 # route_analytics is a return of analyze_segment_route() (probably)
@@ -119,12 +128,12 @@ plot_ridership_by_period <- function(binned_analytics, subcorridor_name) {
       labs(title = "Ridership by Period (All Routes)",
            subtitle = paste0(subcorridor_name, " Sub-Corridor"))+
       theme(text = element_text(size = 9))
-  return(p)
+  return( ggplotly(p))
 }
 
 plot_ridership_by_route <- function(hourly_route_analytics, subcorridor_name) {
   #a <- as.data.frame(subset(df$hourly_route_analytics, subcorridor_id==id))
-  ggplot(hourly_route_analytics, aes(x = hourly_route_analytics$trip_hour, y = daily_ridership, group=route_id, fill=route_id)) + 
+  p <- ggplot(hourly_route_analytics, aes(x = hourly_route_analytics$trip_hour, y = daily_ridership, group=route_id, fill=route_id)) + 
     geom_bar(position = "stack", stat = "identity") +
     #geom_point(shape=21, size=3) + 
     scale_color_viridis(discrete = TRUE) +
@@ -133,6 +142,8 @@ plot_ridership_by_route <- function(hourly_route_analytics, subcorridor_name) {
     labs(title = "Hourly Ridership by Route (all directions)",
          subtitle = paste0(subcorridor_name, " Sub-Corridor")) +
     theme(text = element_text(size = 9))
+  
+  return( ggplotly(p))
 }
 
 # plots hourly ridership by route and direction
@@ -150,7 +161,7 @@ plot_ridership_by_route_dir <- function(hourly_route_direction_analytics, subcor
       facet_wrap(~route_id, ncol = 2) + 
       theme(text = element_text(size = 9))  +
       theme(axis.text.x = element_text(angle = 90))
-  return(p)
+  return( ggplotly(p))
 }
 
 plot_running_time <- function(hourly_route_direction_analytics, subcorridor_name) {
@@ -167,7 +178,7 @@ plot_running_time <- function(hourly_route_direction_analytics, subcorridor_name
     facet_wrap(~route_id + direction_id, ncol = 2) + 
     #theme_phl(base_size = 9)
     theme(text = element_text(size = 9), axis.text.x = element_text(angle = 90))
-  return(p)
+  return( ggplotly(p))
 }
 
 
@@ -184,7 +195,7 @@ plot_service_hrs <- function(route_analytics, subcorridor_name) {
     #theme_phl() + 
     theme(legend.position = "top")+
     theme(text = element_text(size = 9))
-  return(p)
+  return( ggplotly(p))
 }
 
 plot_speed_by_period <- function(binned_analytics, subcorridor_name) {
@@ -198,7 +209,7 @@ plot_speed_by_period <- function(binned_analytics, subcorridor_name) {
     labs(title = "Speed by Period (All Routes)",
          subtitle = paste0(subcorridor_name, " Sub-Corridor"))+
     theme(text = element_text(size = 9))
-  return(p)
+  return( ggplotly(p))
 }
 
 plot_speed_by_route_dir <- function(hourly_route_direction_analytics, subcorridor_name) {
@@ -215,7 +226,7 @@ plot_speed_by_route_dir <- function(hourly_route_direction_analytics, subcorrido
         facet_wrap(~route_id, ncol = 2) + 
         theme(text = element_text(size = 9)) +
         theme(axis.text.x = element_text(angle = 90))
-  return(p)
+  return( ggplotly(p))
 }
 
 ```
@@ -226,8 +237,39 @@ plot_speed_by_route_dir <- function(hourly_route_direction_analytics, subcorrido
 ### Broad Descriptive Stats
 
 ```{r data_map, include=FALSE, message=FALSE}
+# setup multi core functionality
+numCores <- detectCores()
+plan(multisession, workers = numCores)
 
 apc_data <- import_apc()
+
+## ASSEMBLE FULL CORRIDOR DATA ##
+full_stop_list <- I(list(c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919")))
+
+full_corridor_name <- c("Olney and Chelten - Olney and Broad")
+full_corridor_id <- c("full")
+full_corridor_dat <- data.frame(full_corridor_id,full_corridor_name, full_stop_list) %>% 
+  mutate(dat = future_map(full_stop_list, help_find_trip_dat),
+         analytics = future_map(dat, analyze_segment),
+         route_analytics = future_map(dat, analyze_segment_route),
+         binned_analytics = future_map(dat, suppressWarnings(analyze_segment_hourbin)),
+         hourly_analytics = future_map(dat, suppressWarnings(analyze_segment_hourly)),
+         hourly_route_analytics = future_map(dat, suppressWarnings(analyze_segment_route_hourly)),
+         hourly_route_direction_analytics = future_map(dat,suppressWarnings(analyze_segment_route_direction_hourly)))
+
+full_corridor_results <- full_corridor_dat %>% 
+  mutate(daily_ridership_trips_plot = future_map(route_analytics, plot_daily_ridership_trips, full_corridor_name),
+         hourly_speed_plot = future_map(hourly_analytics, plot_hourly_speed, full_corridor_name),
+         ridership_by_period_plot = future_map(binned_analytics, plot_ridership_by_period, full_corridor_name),
+         ridership_by_route_plot = future_map(hourly_route_direction_analytics, plot_ridership_by_route, full_corridor_name),
+         ridership_by_route_dir_plot = future_map(hourly_route_direction_analytics, plot_ridership_by_route_dir, full_corridor_name),
+         running_time_dir_plot = future_map(hourly_route_direction_analytics, plot_running_time, full_corridor_name),
+         service_hrs_plot = future_map(route_analytics, plot_service_hrs, full_corridor_name),
+         speed_by_period_plot = future_map(binned_analytics, plot_speed_by_period, full_corridor_name),
+         speed_by_route_dir_plot = future_map(hourly_route_direction_analytics, plot_speed_by_route_dir, full_corridor_name)
+         )
+
+## ASSEMBLE SUBCORRIDOR DATA ##
 
 # create a new section where we create subcorridor data
 # I added Olney as a whole into this df to test out the plot functions, could take it out later
@@ -240,28 +282,30 @@ subcorridors <- data.frame(subcorridor_id,subcorridor_name,stop_list)
 # map find_trip_dat across the corridors and save that data as dat
 # also maps binned, hourly, route, and direction analytics
 subcorridors_dat <- subcorridors %>%
-  mutate(dat = map(stop_list, help_find_trip_dat),
-         analytics = map(dat, analyze_segment),
-         route_analytics = map(dat, analyze_segment_route),
-         binned_analytics = map(dat, suppressWarnings(analyze_segment_hourbin)),
-         hourly_analytics = map(dat, suppressWarnings(analyze_segment_hourly)),
-         hourly_route_analytics = map(dat, suppressWarnings(analyze_segment_route_hourly)),
-         hourly_route_direction_analytics = map(dat,suppressWarnings(analyze_segment_route_direction_hourly)),
+  mutate(dat = future_map(stop_list, help_find_trip_dat),
+         analytics = future_map(dat, analyze_segment),
+         route_analytics = future_map(dat, analyze_segment_route),
+         binned_analytics = future_map(dat, suppressWarnings(analyze_segment_hourbin)),
+         hourly_analytics = future_map(dat, suppressWarnings(analyze_segment_hourly)),
+         hourly_route_analytics = future_map(dat, suppressWarnings(analyze_segment_route_hourly)),
+         hourly_route_direction_analytics = future_map(dat,suppressWarnings(analyze_segment_route_direction_hourly))
   )
 
 # map plots to subcorridors_dat 
 subcorridors_results <- subcorridors_dat %>% 
-  mutate(daily_ridership_trips_plot = map(route_analytics, plot_daily_ridership_trips, subcorridor_name),
-         hourly_speed_plot = map(hourly_analytics, plot_hourly_speed, subcorridor_name),
-         ridership_by_period_plot = map(binned_analytics, plot_ridership_by_period, subcorridor_name),
-         ridership_by_route_plot = map(hourly_route_direction_analytics, plot_ridership_by_route, subcorridor_name),
-         ridership_by_route_dir_plot = map(hourly_route_direction_analytics, plot_ridership_by_route_dir, subcorridor_name),
-         running_time_dir_plot = map(hourly_route_direction_analytics, plot_running_time, subcorridor_name),
-         service_hrs_plot = map(route_analytics, plot_service_hrs, subcorridor_name),
-         speed_by_period_plot = map(binned_analytics, plot_speed_by_period, subcorridor_name),
-         speed_by_route_dir_plot = map(hourly_route_direction_analytics, plot_speed_by_route_dir, subcorridor_name)
+  mutate(daily_ridership_trips_plot = future_map(route_analytics, plot_daily_ridership_trips, subcorridor_name),
+         hourly_speed_plot = future_map(hourly_analytics, plot_hourly_speed, subcorridor_name),
+         ridership_by_period_plot = future_map(binned_analytics, plot_ridership_by_period, subcorridor_name),
+         ridership_by_route_plot = future_map(hourly_route_direction_analytics, plot_ridership_by_route, subcorridor_name),
+         ridership_by_route_dir_plot = future_map(hourly_route_direction_analytics, plot_ridership_by_route_dir, subcorridor_name),
+         running_time_dir_plot = future_map(hourly_route_direction_analytics, plot_running_time, subcorridor_name),
+         service_hrs_plot = future_map(route_analytics, plot_service_hrs, subcorridor_name),
+         speed_by_period_plot = future_map(binned_analytics, plot_speed_by_period, subcorridor_name),
+         speed_by_route_dir_plot = future_map(hourly_route_direction_analytics, plot_speed_by_route_dir, subcorridor_name)
          )
 
+
+# ZOE - what's this doing here? 
 stop_list <- unlist(stop_list)
 
 #create_stops()
@@ -269,12 +313,13 @@ stops_w_ridership <- st_read("../data/stops_ridership.geojson", quiet = TRUE) %>
     mutate_if(is.factor, as.character) %>% 
     mutate(route_list = as.list(strsplit(as.character(route_str), ",")))
 #create_routes()
-routes_w_ridership <- st_read("../data/routes_ridership.geojson", quiet = TRUE) %>% 
-    mutate_if(is.factor, as.character)
+routes_w_ridership <- st_read("../data/routes_ridership.geojson", quiet = TRUE) %>% mutate_if(is.factor, as.character)
 # import links
 links <- st_read("../data/links_with_stops.geojson", quiet = TRUE) 
 link_stop_data <- links %>% mutate(fromto = as.character(fromto), secondLocationID = as.character(secondLocationID)) %>% 
     mutate(stop_list = as.list(strsplit(as.character(stop_str), ","))) 
+
+# ZOE - why are we importing APC data again here? is this any different than the previous data pull? 
 # import APC data
 apc_data <- read.csv("../data/combined_apc_dataset.csv") %>%  
     mutate(stop_id = paste0(agency_id, stop_id)) %>% 
@@ -284,7 +329,7 @@ apc_data <- read.csv("../data/combined_apc_dataset.csv") %>%
     ))
 apc_data <- adjust_dwell_and_velo(apc_data)
 
-alltracts <- st_read("https://opendata.arcgis.com/datasets/8bc0786524a4486bb3cf0f9862ad0fbf_0.geojson", quiet = TRUE)
+#alltracts <- st_read("https://opendata.arcgis.com/datasets/8bc0786524a4486bb3cf0f9862ad0fbf_0.geojson", quiet = TRUE)
 #restrict to just tracts that stops are in
 
 
@@ -303,21 +348,42 @@ acs_trans <- c("B08301_001", #workers
               "B08301_021" #means of transportation to work: wfh
               )
 
-trip_dat <- (find_trip_dat_v2(apc_data, stop_list))
 
-analytics <- analyze_segment(trip_dat)
-route_analytics <- analyze_segment_route(trip_dat)
-binned_analytics <- suppressWarnings(analyze_segment_hourbin(trip_dat))
-hourly_analytics <- suppressWarnings(analyze_segment_hourly(trip_dat))
-hourly_route_analytics <- suppressWarnings(analyze_segment_route_hourly(trip_dat))
-hourly_route_direction_analytics <- suppressWarnings(analyze_segment_route_direction_hourly(trip_dat))
+routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% full_corridor_results$dat[[1]]$route_id)
 
-routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% trip_dat$route_id) 
+## CORRIDOR LEVEL STOP DATA ##
+
+stop_trip_dat <- find_stop_dat(apc_data, stop_list)
+daily_stop_analytics <- analyze_stops_daily(stop_trip_dat)
+stop_route_analytics <- analyze_stops_routes_daily(stop_trip_dat)
+stop_route_binned_analytics <- suppressWarnings(analyze_stops_routes_hourbin(stop_trip_dat))
+stop_route_hourly_analytics <- suppressWarnings(analyze_stops_routes_hourly(stop_trip_dat))
+
+# to-do - create a function that returns ordered stop data based on whether it is more of an east-west route or a north-south route
+# if it's an east/west route - order it by longitude, if it's a north/south route, order by stop_lat
+ordered_stop_dat <- stop_trip_dat %>% 
+  group_by(stop_id, stop_name, stop_lat, stop_lon) %>% 
+  summarise() %>% 
+  mutate(stop_name_2 = stop_name) %>% 
+  separate(stop_name_2, c("on_street", "at_street"), sep = "&") %>% 
+  arrange(stop_lon)
+
+# helper function to create a readable sentence version of a list of routes (or stops)
+create_route_sentence <- function(route_list) {
+  
+  first_routes <- (route_list[1:length(route_list)-1] %>% unlist()) %>% paste0(sep = ", ", collapse = '')
+  last_route <- route_list[length(route_list)]
+  
+  output <- paste0(first_routes, "and ", last_route)
+  
+  return(output)
+}
+
 
 ```
 
 ```{r}
-
+# ZOE - what's going on here? something we can delete? 
 
 
 
@@ -325,14 +391,15 @@ routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% trip_dat$rout
 ```
 
 
-The Olney transit corridor runs along Olney Ave between Chelten Avenue and Front Street. The 18 and 26 are the two routes that run along the corridor, both crossing North Broad Street past the Olney Transportation Center. The Transportation Center has a stop for the Broad Street Line, while there is also a stop for the Fox Station Regional Rail line at the end of the corridor adjacent to Olney & Front Street. There are `length(subcorridors[[3]][[1]])` total bus stops along the corridor, with the average bus trip running past `round(mean(subcorridors_dat[[4]][[1]]$n_stops))` stops spanning `round(mean(subcorridors_dat[[4]][[1]]$distance_traveled),digits=2)` miles.
+The Olney transit corridor runs along `ordered_stop_dat$on_street %>% unique() %>% create_route_sentence()` between `first(ordered_stop_dat$at_street)` and `last(ordered_stop_dat$at_street)`. The corridor serves the routes `create_route_sentence(unique(stop_route_analytics$route_id))`. There are `length(subcorridors[[3]][[1]])` total bus stops along the corridor, with the average bus trip running past `round(mean(subcorridors_dat[[4]][[1]]$n_stops))` stops spanning `round(mean(subcorridors_dat[[4]][[1]]$distance_traveled),digits=2)` miles.
 
 ```{r leaflet_map, include=TRUE, message=FALSE}
   
 # map of routes that exist in this corridor
 leaflet() %>%
   setView(lng = -75.14511, lat = 40.03905, zoom = 13) %>% 
-  addProviderTiles(providers$Stamen.Toner) #%>% 
+  addProviderTiles(providers$Stamen.Toner) %>% 
+  addCircleMarkers(daily_stop_analytics, lat = daily_stop_analytics$stop_lat, lng = daily_stop_analytics$stop_lon, radius = (daily_stop_analytics$total_ons + daily_stop_analytics$total_offs)/100, color = "blue")
   #addPolylines(data = routes_w_ridership, color = "#4377bc", weight = 4, layerId = link_stop_data$fromto, opacity = 0.5)
 
 # also add chart/table of global averages for context of subcorridors
@@ -341,11 +408,11 @@ leaflet() %>%
 
 ### Corridor Level Descriptive Stats
 
-These charts illustrate characteristics for the Olney corridor as a whole, such as average speed and ridership. Average speed, as well as riderhship, vary both by route and by time of day.
+These charts illustrate characteristics for the Olney corridor as a whole, such as average speed and ridership. Average speed, as well as ridership., vary both by route and by time of day.
 
 ```{r corridor_level}
 
-table_1 <- route_analytics %>% bind_rows(analytics %>% mutate(route_id = "Total"))
+table_1 <- full_corridor_results$route_analytics[[1]] %>% bind_rows(full_corridor_results$analytics[[1]] %>% mutate(route_id = "Total"))
  
 kable(table_1, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
   kable_styling(latex_options = "scale_down")  %>%
@@ -363,11 +430,11 @@ kable(table_1, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),d
 
 
 #will have to change the Olney plots to work with the new function structure
-#plot_hourly_speed(subcorridors_dat,"OL")
+plot_hourly_speed(full_corridor_results$hourly_analytics[[1]], "Olney Avenue")
 
-#plot_speed_by_period(subcorridors_dat, "OL")
+plot_speed_by_period(full_corridor_results$binned_analytics[[1]], "Olney Avenue")
 
-#plot_ridership_by_period(subcorridors_dat, "OL")
+plot_ridership_by_period(full_corridor_results$binned_analytics[[1]], "Olney Avenue")
 
 ```
 
