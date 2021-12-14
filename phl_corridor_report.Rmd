@@ -29,7 +29,7 @@ params:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-source("./code/segmentation_code.R")
+#source("./code/segmentation_code.R")
 
 library(rmarkdown)
 library(tinytex)
@@ -101,12 +101,12 @@ ggplot(route_analytics, aes(y = daily_ridership, x = route_id, label = daily_rid
   labs(title = paste0("The Corridor Serves ", round(sum(analytics$daily_ridership)), " Riders per Day")) +
   theme(text = element_text(size = 9))
 
-ggplot(route_analytics, aes(x = route_id, y = avg_segement_speed)) + 
+ggplot(route_analytics, aes(x = route_id, y = avg_segment_speed)) + 
   geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
-  geom_errorbar(data = route_analytics, stat = "identity", ymin = route_analytics$adj_speed_10_pct, ymax = route_analytics$adj_speed_90_pct, colour="orange", alpha=0.6, size=1.3, width = 0.4) + 
-  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8, limits = c(0, max(route_analytics$adj_speed_90_pct) * 1.1)) +
+  geom_errorbar(data = route_analytics, stat = "identity", ymin = route_analytics$avg_speed_10_pct, ymax = route_analytics$avg_speed_90_pct, colour="orange", alpha=0.6, size=1.3, width = 0.4) + 
+  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8, limits = c(0, max(route_analytics$avg_speed_90_pct) * 1.1)) +
   scale_x_discrete(name = "Route Number") + 
-  labs(title = paste0("The Average Bus Travels at ", round(mean(analytics$avg_segement_speed), 1), " MPH on the Corridor")) +
+  labs(title = paste0("The Average Bus Travels at ", round(mean(analytics$avg_segment_speed), 1), " MPH on the Corridor")) +
   theme(text = element_text(size = 9))
 ```
 
@@ -158,10 +158,10 @@ ggplot(binned_analytics, aes(x = timeframe, y = daily_ridership, label = daily_r
   labs(title = "Ridership by Period (All Routes)")+
   theme(text = element_text(size = 9))
 
-ggplot(binned_analytics, aes(x = timeframe, y = avg_segement_speed)) + 
+ggplot(binned_analytics, aes(x = timeframe, y = avg_segment_speed)) + 
   geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
-  geom_errorbar(data = binned_analytics, stat = "identity", ymin = binned_analytics$adj_speed_10_pct, ymax = binned_analytics$adj_speed_90_pct, colour="orange", alpha=0.6, size=1.3, width = 0.4) + 
-  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8, limits = c(0, max(binned_analytics$adj_speed_90_pct) * 1.1)) +
+  geom_errorbar(data = binned_analytics, stat = "identity", ymin = binned_analytics$avg_speed_10_pct, ymax = binned_analytics$avg_speed_90_pct, colour="orange", alpha=0.6, size=1.3, width = 0.4) + 
+  scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8, limits = c(0, max(binned_analytics$avg_speed_90_pct) * 1.1)) +
   scale_x_discrete(name = element_blank()) +
   labs(title = "Speed by Period (All Routes)")+
   theme(text = element_text(size = 9))
@@ -185,7 +185,7 @@ ggplot(binned_analytics, aes(x = timeframe, y = avg_segement_speed)) +
 ```{r hourly_plots, echo=FALSE, warning=FALSE}
 ggplot(hourly_analytics) + 
   geom_line(aes(x = trip_hour, y = avg_segment_speed)) +
-  geom_point(aes(x = trip_hour, y = v), shape=21, size=3) + 
+  geom_point(aes(x = trip_hour, y = avg_segment_speed), shape=21, size=3) + 
   scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8) +
   scale_x_continuous(name = "Hour", breaks = c(0:23)) +
   labs(title = "Hourly Speed (All Routes)")+
