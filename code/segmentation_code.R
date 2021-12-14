@@ -687,7 +687,7 @@ analyze_stops_daily <- function(stop_trip_dat) {
 }
 
 analyze_stops_routes_daily <- function(stop_trip_dat) {
-  output <- stop_trip_dat %>% group_by(stop_id, stop_name, route_id, direction_id)  %>% 
+  output <- stop_trip_dat %>% group_by(stop_id, stop_name, stop_lat, stop_lon, route_id, direction_id)  %>% 
     summarise(routes = paste(unlist(list(unique(route_id))), collapse = ","),
               total_trips = n(), 
               avg_headway = 60 / (n() / 24),
@@ -721,7 +721,7 @@ analyze_stops_routes_hourbin <- function(stop_trip_dat) {
     )) %>% 
     mutate(timeframe = factor(timeframe, ordered = TRUE, 
                               levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
-    group_by(stop_id, stop_name, route_id, direction_id, timeframe) %>% 
+    group_by(stop_id, stop_name, stop_lat, stop_lon, route_id, direction_id, timeframe) %>% 
     summarise(routes = paste(unlist(list(unique(route_id))), collapse = ","),
               total_trips = n(), 
               #avg_headway = (60 / total_trips / hour_len),
@@ -739,7 +739,7 @@ analyze_stops_routes_hourbin <- function(stop_trip_dat) {
 analyze_stops_routes_hourly <- function(stop_trip_dat) {
   output <- stop_trip_dat %>% 
     mutate(hour = time_stamp %>% as.character() %>% hms() %>% hour()) %>%
-    group_by(stop_id, stop_name, route_id, direction_id, hour) %>% 
+    group_by(stop_id, stop_name, stop_lat, stop_lon, route_id, direction_id, hour) %>% 
     summarise(routes = paste(unlist(list(unique(route_id))), collapse = ","),
               total_trips = n(), 
               avg_headway = 60 / (n()),
