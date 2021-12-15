@@ -662,7 +662,7 @@ analyze_segment_route_direction_hourly <- function(trip_dat) {
 
 
 find_stop_dat <- function(apc_trip_data = apc_data, stop_list) {
-  filtered_dat <- filter_trip_list(apc_trip_data, stop_list) %>% adjust_dwell_and_velo
+  filtered_dat <- filter_trip_list(apc_trip_data, stop_list) %>% adjust_dwell_and_velo()
   
   output <- filtered_dat %>% filter(stop_id %in% stop_list)
   
