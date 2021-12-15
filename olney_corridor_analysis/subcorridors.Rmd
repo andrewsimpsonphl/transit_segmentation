@@ -31,9 +31,9 @@ kable(table_1, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),d
 #### Weekday Ridership
 
 ```{r , echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
-subcorridors_results$ridership_by_period_plot[[1]]
-subcorridors_results$ridership_by_route_plot[[1]]
-subcorridors_results$ridership_by_route_dir_plot[[1]]
+subcorridor_results_line$ridership_by_period_plot[[1]]
+subcorridor_results_line$ridership_by_route_plot[[1]]
+subcorridor_results_line$ridership_by_route_dir_plot[[1]]
 
 ```
 
@@ -44,9 +44,9 @@ subcorridors_results$ridership_by_route_dir_plot[[1]]
 
 ```{r , echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
 
-subcorridors_results$hourly_speed_plot[[1]]
-subcorridors_results$speed_by_period_plot[[1]]
-subcorridors_results$speed_by_route_dir_plot[[1]]
+subcorridor_results_line$hourly_speed_plot[[1]]
+subcorridor_results_line$speed_by_period_plot[[1]]
+subcorridor_results_line$speed_by_route_dir_plot[[1]]
 
 ```
 
@@ -64,6 +64,6 @@ subcorridors_results$speed_by_route_dir_plot[[1]]
 
 ```{r , echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
 
-subcorridors_results$running_time_dir_plot[[1]]
+subcorridor_results_line$running_time_dir_plot[[1]]
 
 ```
