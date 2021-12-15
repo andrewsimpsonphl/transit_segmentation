@@ -669,6 +669,8 @@ find_stop_dat <- function(apc_trip_data = apc_data, stop_list) {
   return(output)
 }
 
+
+
 analyze_stops_daily <- function(stop_trip_dat) {
   output <- stop_trip_dat %>% group_by(stop_id, stop_name, stop_lat, stop_lon) %>% 
     summarise(routes = paste(unlist(list(unique(route_id))), collapse = ","),

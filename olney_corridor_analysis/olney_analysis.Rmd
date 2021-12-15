@@ -268,7 +268,7 @@ apc_data <- import_apc()
 apc_data <- adjust_dwell_and_velo(apc_data)
 
 ## ASSEMBLE FULL CORRIDOR DATA ##
-full_stop_list <- c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919","SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910","SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")
+full_stop_list <- I(list(c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919","SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910","SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")))
 
 full_corridor_name <- c("Chelten to Front")
 full_corridor_id <- c("full")
@@ -292,6 +292,21 @@ full_corridor_results <- full_corridor_dat %>%
          speed_by_period_plot = future_map(binned_analytics, plot_speed_by_period, full_corridor_name),
          speed_by_route_dir_plot = future_map(hourly_route_direction_analytics, plot_speed_by_route_dir, full_corridor_name)
          )
+
+help_find_stop_dat <- function(stop_list) {
+  output <- find_stop_dat(apc_data, stop_list)
+  
+  return(output)
+}
+
+## CORRIDOR LEVEL STOP DATA ##
+full_stop_data <- full_corridor_dat %>% 
+  select(full_corridor_id, full_stop_list) %>% 
+  mutate(stop_trip_dat = map(full_stop_list, help_find_stop_dat)) %>% 
+  mutate(daily_stop_analytics = map(stop_trip_dat, analyze_stops_daily),
+         stop_route_analytics = map(stop_trip_dat, analyze_stops_routes_daily),
+         stop_route_binned_analytics = map(stop_trip_dat, suppressWarnings(analyze_stops_routes_hourbin)),
+         stop_route_hourly_analytics = map(stop_trip_dat, suppressWarnings(analyze_stops_routes_hourly)))
 
 ## ASSEMBLE SUBCORRIDOR DATA ##
 
@@ -358,13 +373,7 @@ acs_trans <- c("B08301_001", #workers
 
 routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% full_corridor_results$dat[[1]]$route_id)
 
-## CORRIDOR LEVEL STOP DATA ##
 
-stop_trip_dat <- find_stop_dat(apc_data, full_stop_list)
-daily_stop_analytics <- analyze_stops_daily(stop_trip_dat)
-stop_route_analytics <- analyze_stops_routes_daily(stop_trip_dat)
-stop_route_binned_analytics <- suppressWarnings(analyze_stops_routes_hourbin(stop_trip_dat))
-stop_route_hourly_analytics <- suppressWarnings(analyze_stops_routes_hourly(stop_trip_dat))
 
 # helper data set that is a list of stops in order on the corridor 
 # to-do - create a function that returns ordered stop data based on whether it is more of an east-west route or a north-south route
@@ -488,3 +497,16 @@ for(i in 1:length(subcorridors_results$subcorridor_id)){
 
 
 ```
+
+## Stop Level Analysis 
+
+### Stop Level Map 
+
+### Daily Analytics by Stop Table 
+
+### Daily Analytics by Stop/Route Table
+- User input to add/subtracts routes - i.e. pull from the route level data? 
+
+### Stop Profile by Route/Direction 
+
+
