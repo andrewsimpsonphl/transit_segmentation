@@ -1,5 +1,5 @@
-stop_id,stop_name,stop_lat,stop_lon,routes,total_trips,avg_headway,total_ons,total_offs,avg_load,avg_dwell_observed,avg_dwell_estimated,avg_speed,avg_dwell_per_pass_obs,avg_dwell_per_pass_est,stop_change,TSP,farside,platform,alldoor,queue_jump
-SEPTA16489,Erie Av & Old York Rd,40.008727,-75.147706,"53,56",173,8,67,25,14,NA,6.74808318452487,10.21,NA,0.07,0,0,0,0,0,0
-SEPTA17419,Erie Av & Elder St - FS,40.009053,-75.149844,"53,56",173,8,171,20,13,NA,9.15790761563798,4.04,NA,0.05,0,0,0,0,0,0
-SEPTA21260,Erie Av & Broad St,40.009208,-75.151439,"53,56",173,8,1200,844,12,NA,33.36900973775931,7.26,NA,0.02,0,0,0,0,0,0
-SEPTA17038,Erie Av & 15th St,40.009408,-75.152998,"53,56",173,8,60,29,10,NA,6.002019207793604,9.59,NA,0.07,0,0,0,0,0,0
+stop_id,stop_name,stop_lat,stop_lon,routes,total_trips,avg_headway,total_ons,total_offs,avg_load,avg_dwell_observed,avg_dwell_estimated,avg_dwell_hybrid,avg_speed,avg_dwell_per_pass_hybrid,stop_change,TSP,farside,platform,alldoor,queue_jump
+SEPTA16489,Erie Av & Old York Rd,40.008727,-75.147706,"53,56",173,8,67,25,14,NA,6.74808318452487,6.74808318452487,10.21,12.64,0,0,0,0,0,0
+SEPTA17419,Erie Av & Elder St - FS,40.009053,-75.149844,"53,56",173,8,171,20,13,NA,9.15790761563798,9.15790761563798,4.04,8.32,0,0,0,0,0,0
+SEPTA21260,Erie Av & Broad St,40.009208,-75.151439,"53,56",173,8,1200,844,12,NA,33.36900973775931,33.36900973775931,7.26,2.82,0,0,0,0,0,0
+SEPTA17038,Erie Av & 15th St,40.009408,-75.152998,"53,56",173,8,60,29,10,NA,6.002019207793603,6.002019207793603,9.59,11.62,0,0,0,0,0,0
