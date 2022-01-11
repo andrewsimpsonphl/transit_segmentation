@@ -45,18 +45,18 @@ plot_daily_ridership_trips <- function(route_analytics, corridor_name){
 # interactive hourly speed line graph for a specified subcorridor 
 plot_hourly_speed <- function(hourly_analytics, corridor_name){
   
-  dat2 <- hourly_velo_avg %>% mutate(trip_hour = hour_bin, avg_segment_speed = avg_velo) %>% 
-    select(trip_hour, avg_segment_speed) %>% 
+  dat2 <- apc_data %>% 
+    group_by(trip_hour = hour_bin) %>% 
+    summarise(avg_segment_speed = mean(velocity, na.rm = TRUE)) %>% 
+    filter(trip_hour >= 0 & trip_hour < 24) %>% 
     mutate(label = "System Average")
   
   dat <- hourly_analytics %>% select(trip_hour, avg_segment_speed) %>% 
     mutate(label = corridor_name) %>% 
     full_join(dat2)
   
-  #p <- g
-  ggplot(dat) + 
+  p <- ggplot(dat) + 
     geom_line(aes(x = trip_hour, y = avg_segment_speed, color = label)) +
-    #geom_line(data = hourly_velo_avg, aes(x = hour_bin, y = avg_velo, color = "pink")) +
     geom_point(aes(x = trip_hour, y = avg_segment_speed), shape=21, size=3) + 
     scale_y_continuous(name = "Speed (MPH) - Includes Dwell Time", n.breaks = 8) +
     scale_x_continuous(name = "Hour", breaks = c(0:23)) +

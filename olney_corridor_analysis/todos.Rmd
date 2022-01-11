@@ -7,19 +7,19 @@ output: html_document
 
 # Doing
 
-- Add filtering of patterns 
+- Add filtering of patterns - need to QAQC
+- Add charts that compare subcorridors
+- Automate remaining text in document
+- Add reliability charts to subcorridor documents
 
 # Next to-dos
 
-- Convert other tables to reactables
-- Add charts that compare subcorridrs
-- Add reliability charts to subcorridor documents
-- Fully implement smarter stop ordering throughout code
-- Add export ability to the kables (i.e. the tables)
+- Convert other tables to reactables & try to add "export" option
 - Add stop level charts 
 - Add subcorridor ID to stops
 - Clean up the corridor/subcorridor input process
 - Standardize & functionalize chart formatting 
+- Fully implement smarter stop ordering throughout code
 
 # Roadmap
 

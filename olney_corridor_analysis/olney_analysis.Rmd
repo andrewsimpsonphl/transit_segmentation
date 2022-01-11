@@ -9,6 +9,8 @@ output:
     code_folding: hide
   pdf_document:
     toc: yes
+params:
+  full_corridor_name: "Olney Avenue"
 ---
 
 ```{r setup, include=FALSE, message=FALSE}
@@ -42,6 +44,8 @@ options(tigris_class = "sf") # tells tidycensus to download Census geometries in
 # setup multi core functionality
 numCores <- detectCores()
 plan(multisession, workers = numCores)
+
+full_corridor_name <- params$full_corridor_name
 
 ```
 
@@ -89,7 +93,7 @@ apc_data <- import_apc()
 ## ASSEMBLE FULL CORRIDOR DATA ##
 stop_list <- list(c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919","SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910","SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962"))
 
-corridor_name <- c("Chelten to Front")
+corridor_name <- c(full_corridor_name)
 corridor_id <- c("full")
 full_corridor_dat <- data.frame(corridor_id,corridor_name, I(stop_list)) %>%
   mutate(dat = map(stop_list, help_find_trip_dat),
@@ -213,7 +217,7 @@ hourly_velo_avg <- apc_data %>% group_by(hour_bin) %>% summarise(n = n(), avg_ve
 
 ### Overview
 
-The Olney transit corridor runs along `r ordered_stop_dat$on_street %>% unique() %>% create_route_sentence()` between `r first(ordered_stop_dat$at_street)` and `r last(ordered_stop_dat$at_street)`. The corridor serves the routes `r create_route_sentence(unique(full_stop_data$stop_route_analytics[[1]]$route_id))`. There are `r length(full_stop_data$daily_stop_analytics[[1]]$stop_id)` total bus stops along the corridor. The corridor directly served `r full_corridor_dat$analytics[[1]]$daily_ridership` riders per day in 2019.
+The `r full_corridor_name` transit corridor runs along `r ordered_stop_dat$on_street %>% unique() %>% create_route_sentence()` between `r first(ordered_stop_dat$at_street)` and `r last(ordered_stop_dat$at_street)`. The corridor serves the routes `r create_route_sentence(unique(full_stop_data$stop_route_analytics[[1]]$route_id))`. There are `r length(full_stop_data$daily_stop_analytics[[1]]$stop_id)` total bus stops along the corridor. The corridor directly served `r full_corridor_dat$analytics[[1]]$daily_ridership` riders per day in 2019.
 
 ```{r pattern_table, echo=FALSE, out.width='100%', warning=FALSE}
 table <- code_patterns(full_corridor_dat$dat[[1]])
@@ -248,7 +252,7 @@ plot_trips_per_hour(full_corridor_dat$hourly_route_analytics[[1]])
 
 ### Weekday Ridership
 
-The corridor moves `r round(full_corridor_dat$analytics[[1]]$daily_ridership, 0)` transit passengers per day. The peak hour for transit passenger movement on the corridor is `r (full_corridor_dat$hourly_analytics[[1]] %>% filter(daily_ridership == max(daily_ridership)))$trip_hour`. At the peak hour, the corridor serves `r (full_corridor_dat$hourly_analytics[[1]] %>% filter(daily_ridership == max(daily_ridership)))$daily_ridership`  riders. 
+The `r full_corridor_name` corridor moves `r round(full_corridor_dat$analytics[[1]]$daily_ridership, 0)` transit passengers per day. The peak hour for transit passenger movement on the corridor is `r (full_corridor_dat$hourly_analytics[[1]] %>% filter(daily_ridership == max(daily_ridership)))$trip_hour`. At the peak hour, the corridor serves `r (full_corridor_dat$hourly_analytics[[1]] %>% filter(daily_ridership == max(daily_ridership)))$daily_ridership`  riders. 
 
 ```{r ridership_plots, echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
 full_corridor_results$ridership_by_period_plot[[1]]
@@ -284,7 +288,7 @@ full_corridor_results$speed_by_route_dir_plot[[1]]
 # to do - create a df of these plots so it's automated to n where n = routes * directions
 # to do - scale x axis on all plots so that they are the same
 
-primary_patterns <- code_patterns(full_corridor_dat$dat[[1]]) %>% filter(pattern_type == "primary") %>% select(pattern_id) %>% as.list()
+#primary_patterns <- code_patterns(full_corridor_dat$dat[[1]]) %>% filter(pattern_type == "primary") %>% select(pattern_id) %>% as.list()
 
 plot_joyplot_runtimes(full_corridor_dat, route_num = 18, direction = "Eastbound", pattern_list = primary_patterns[[1]])
 plot_joyplot_runtimes(full_corridor_dat, route_num = 26, direction = "Eastbound", pattern_list = primary_patterns[[1]])
