@@ -19,7 +19,8 @@ Interpretation
 #### Subcorridor Daily Analytics
 ```{r echo=FALSE}
 
-table_1 <- subcorridor_results_line$route_analytics[[1]] %>% bind_rows(subcorridor_results_line$analytics[[1]] %>% mutate(route_id = "Total"))
+table_1 <- subcorridor_results_line$route_analytics[[1]] %>% 
+  bind_rows(subcorridor_results_line$analytics[[1]] %>% mutate(route_id = "Total"))
   
 kable(table_1, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
  kable_styling(latex_options = "scale_down")  %>%

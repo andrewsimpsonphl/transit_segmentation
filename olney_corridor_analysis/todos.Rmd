@@ -1,0 +1,39 @@
+---
+title: "Todo List"
+author: "Andrew Simpson"
+date: "12/17/2021"
+output: html_document
+---
+
+# Doing
+
+- Add filtering of patterns 
+
+# Next to-dos
+
+- Convert other tables to reactables
+- Add charts that compare subcorridrs
+- Add reliability charts to subcorridor documents
+- Fully implement smarter stop ordering throughout code
+- Add export ability to the kables (i.e. the tables)
+- Add stop level charts 
+- Add subcorridor ID to stops
+- Clean up the corridor/subcorridor input process
+- Standardize & functionalize chart formatting 
+
+# Roadmap
+
+## Near term
+- Create corridor level map for top of document
+- Create app_v2 to allow user input
+- Develop diagramatic view of data at stop/link level - showing lines between stops for speed/running time and points at stops for ons/offs and dwell
+
+## Longer term
+- integrate Swiftly AVL data into tool
+- create output to "save" for future before/after analysis
+- create output to take to predictive tool
+
+# Done
+
+- Create joyplot of runtimes
+- Create functions to assist in filtering of route patterns 
