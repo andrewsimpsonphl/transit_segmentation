@@ -208,6 +208,49 @@ nest_trip_data_v2 <- function(filtered_dat) {
   return(y)
 }
 
+pull_trip <- function(apc_data, trip_num) {
+  
+  output <- apc_data %>% 
+    filter(trip_id == trip_num)
+  
+}
+
+make_pattern_board <- function(trip_dat) {
+  output <- trip_dat %>% 
+    group_by(route_id, direction_id, n_stops, stop_list) %>% 
+    summarise(patterns = list(unique(pattern_id)), n_trips = n(), mean_run = mean(run, na.rm = TRUE)) %>% 
+    ungroup() %>% 
+    mutate(id = row_number()) %>% 
+    select(id, everything()) %>% 
+    group_by(route_id, direction_id) %>% 
+    mutate(
+      pattern_type = case_when(
+        n_trips == max(n_trips) ~ "primary",
+        n_trips < max(n_trips) ~ "secondary"
+      )
+    )
+  
+  return(output)
+}
+
+code_patterns <- function(trip_dat) {
+  
+  pattern_board <- make_pattern_board(trip_dat) %>% 
+    select(pattern_id = patterns, pattern_type) %>% 
+    ungroup() %>% 
+    unnest(pattern_id)
+  
+  pattern_dat <- trip_dat %>% 
+    group_by(pattern_id) %>% 
+    summarise(n_trips = n(), mean_run = mean(run, na.rm = TRUE))
+  
+  output <- pattern_board %>% 
+    left_join(pattern_dat, by = c("pattern_id"))
+  
+  return(output)
+  
+}
+
 #nested_trip_dat = nest_trip_data_v2(filter_trip_list(apc_data, stop_list))
 #nested_apc_df <- nested_trip_dat[[2]][[2]]
 
@@ -503,7 +546,8 @@ analyze_segment_route <- function(trip_dat) {
 
 analyze_segment_hourbin <- function(trip_dat) {
   output <- trip_dat %>% 
-    mutate(trip_hour = trip_begin %>% as.character() %>% hms() %>% hour()) %>%
+    mutate(trip_hour = (trip_begin %>% lubridate::as_datetime(format = "%H:%M:%S") %>% hour())) %>% 
+    #mutate(trip_hour = trip_begin %>% as.character() %>% hms() %>% hour()) %>%
     mutate(timeframe = case_when(
       trip_hour <=6 ~"Early AM",
       trip_hour >=7 & trip_hour <=10 ~"AM Rush",
@@ -539,7 +583,7 @@ analyze_segment_hourbin <- function(trip_dat) {
 
 analyze_segment_route_hourly <- function(trip_dat) {
   output <- trip_dat %>% 
-    mutate(trip_hour = trip_begin %>% as.character() %>% hms() %>% hour()) %>%
+    mutate(trip_hour = (trip_begin %>% lubridate::as_datetime(format = "%H:%M:%S") %>% hour())) %>% 
     mutate(timeframe = case_when(
       trip_hour <=6 ~"Early AM",
       trip_hour >=7 & trip_hour <=10 ~"AM Rush",
@@ -576,7 +620,7 @@ analyze_segment_route_hourly <- function(trip_dat) {
 
 analyze_segment_hourly <- function(trip_dat) {
   output <- trip_dat %>% 
-    mutate(trip_hour = trip_begin %>% as.character() %>% hms() %>% hour()) %>%
+    mutate(trip_hour = trip_begin %>% lubridate::as_datetime(format = "%H:%M:%S") %>% hour()) %>% 
     # mutate(timeframe = case_when(
     #   trip_hour <=6 ~"Early AM",
     #   trip_hour >=7 & trip_hour <=10 ~"AM Rush",
@@ -612,7 +656,7 @@ analyze_segment_hourly <- function(trip_dat) {
 
 analyze_segment_route_direction_hourly <- function(trip_dat) {
   output <- trip_dat %>% 
-    mutate(trip_hour = trip_begin %>% as.character() %>% hms() %>% hour()) %>%
+    mutate(trip_hour = trip_begin %>% lubridate::as_datetime(format = "%H:%M:%S") %>% hour()) %>% 
     mutate(timeframe = case_when(
       trip_hour <=6 ~"Early AM",
       trip_hour >=7 & trip_hour <=10 ~"AM Rush",
@@ -706,20 +750,20 @@ analyze_stops_routes_daily <- function(stop_trip_dat) {
  
 analyze_stops_routes_hourbin <- function(stop_trip_dat) {
   output <- stop_trip_dat %>% 
-    mutate(trip_hour = time_stamp %>% as.character() %>% hms() %>% hour()) %>%
+    #mutate(trip_hour = hour_bin) %>% 
     mutate(timeframe = case_when(
-      trip_hour <=6 ~"Early AM",
-      trip_hour >=7 & trip_hour <=10 ~"AM Rush",
-      trip_hour >=11 & trip_hour <=15 ~"Afternoon",
-      trip_hour >=16 & trip_hour <=19 ~"PM Rush",
-      trip_hour >=20 & trip_hour <=24 ~"Evening",
+      hour_bin <=6 ~"Early AM",
+      hour_bin >=7 & hour_bin <=10 ~"AM Rush",
+      hour_bin >=11 & hour_bin <=15 ~"Afternoon",
+      hour_bin >=16 & hour_bin <=19 ~"PM Rush",
+      hour_bin >=20 & hour_bin <=24 ~"Evening",
     )) %>% 
     mutate(hour_len = case_when(
-      trip_hour <=6 ~ 6,
-      trip_hour >=7 & trip_hour <=10 ~ 4,
-      trip_hour >=11 & trip_hour <=15 ~5,
-      trip_hour >=16 & trip_hour <=19 ~4,
-      trip_hour >=20 & trip_hour <=24 ~4,
+      hour_bin <=6 ~ 6,
+      hour_bin >=7 & hour_bin <=10 ~ 4,
+      hour_bin >=11 & hour_bin <=15 ~5,
+      hour_bin >=16 & hour_bin <=19 ~4,
+      hour_bin >=20 & hour_bin <=24 ~4,
     )) %>% 
     mutate(timeframe = factor(timeframe, ordered = TRUE, 
                               levels = c("Early AM", "AM Rush", "Afternoon", "PM Rush", "Evening"))) %>% 
@@ -740,8 +784,8 @@ analyze_stops_routes_hourbin <- function(stop_trip_dat) {
 
 analyze_stops_routes_hourly <- function(stop_trip_dat) {
   output <- stop_trip_dat %>% 
-    mutate(hour = time_stamp %>% as.character() %>% hms() %>% hour()) %>%
-    group_by(stop_id, stop_name, stop_lat, stop_lon, route_id, direction_id, hour) %>% 
+    #mutate(trip_hour =  hour_bin) %>% 
+    group_by(stop_id, stop_name, stop_lat, stop_lon, route_id, direction_id, hour_bin) %>% 
     summarise(routes = paste(unlist(list(unique(route_id))), collapse = ","),
               total_trips = n(), 
               avg_headway = 60 / (n()),
