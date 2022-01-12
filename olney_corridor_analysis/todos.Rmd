@@ -10,7 +10,7 @@ output: html_document
 - Add filtering of patterns - need to QAQC
 - Add charts that compare subcorridors
 - Automate remaining text in document
-- Add reliability charts to subcorridor documents
+- Add reliability charts to subcorridor documents - tried to add this through a for loop, works in Rmd but not knitted
 
 # Next to-dos
 

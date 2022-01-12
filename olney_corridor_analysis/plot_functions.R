@@ -227,7 +227,7 @@ plot_speed_by_route_dir <- function(hourly_route_direction_analytics, corridor_n
 }
 
 
-plot_joyplot_runtimes <- function(full_corridor_dat, route_num, direction = "Eastbound", pattern_list) {
+plot_joyplot_runtimes <- function(full_df, route_num, direction = "Eastbound", pattern_list) {
   
   full_df <- full_corridor_dat$dat[[1]]
   x <- full_df %>% ungroup() %>% 

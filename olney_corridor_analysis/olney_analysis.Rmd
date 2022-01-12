@@ -221,12 +221,25 @@ The `r full_corridor_name` transit corridor runs along `r ordered_stop_dat$on_st
 
 ```{r pattern_table, echo=FALSE, out.width='100%', warning=FALSE}
 table <- code_patterns(full_corridor_dat$dat[[1]])
-
-kable(table, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
-  kable_styling(latex_options = "scale_down")  %>%
-  #row_spec(dim(table)[1], bold = T) %>% # format last row
-  column_spec(1, italic = T) %>%  # format first column
-  scroll_box(width = "100%", height = "200px")
+reactable(table,
+          defaultColDef = colDef(
+    header = function(value) gsub(".", " ", value, fixed = TRUE),
+    cell = function(value) format(value, nsmall = 1),
+    align = "center",
+    minWidth = 70,
+    headerStyle = list(background = "#f7f7f8")
+  ),
+  columns = list(
+    Species = colDef(minWidth = 140)  # overrides the default
+  ),
+  bordered = TRUE,
+  highlight = TRUE
+)
+# kable(table, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
+#   kable_styling(latex_options = "scale_down")  %>%
+#   #row_spec(dim(table)[1], bold = T) %>% # format last row
+#   column_spec(1, italic = T) %>%  # format first column
+#   scroll_box(width = "100%", height = "200px")
 
 ```
 
@@ -234,7 +247,6 @@ kable(table, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),dig
 ```{r corridor_table, echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
 
 table_1 <- full_corridor_results$route_analytics[[1]] %>% bind_rows(full_corridor_results$analytics[[1]] %>% mutate(route_id = "Total"))
- 
 kable(table_1, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
   kable_styling(latex_options = "scale_down")  %>%
   row_spec(dim(table_1)[1], bold = T) %>% # format last row
@@ -268,8 +280,8 @@ Speed and reliability are two of the most important aspects governing how attrac
 
 There is, however, an important distinction between transit speed and transit reliability:
 
-- speed is how fast the vehicle is moving through the corridor
-- reliability is how consistent those speeds are, throughout a day or another period of time. 
+- Speed is how fast the vehicle is moving through the corridor.
+- Reliability is how consistent those speeds are, throughout a day or another period of time. 
 
 Oftentimes, qualitative research on transit finds that riders remember their worst trip much more vividly than their average (or even their best) trips. This is where reliability is key - providing customers with a consistent trip time is just as important as a fast trip time, because when they budget time for future trips, they have to be reasonably sure that the time budgeted will represent the majority of potential travel time outcomes.
 
@@ -289,12 +301,16 @@ full_corridor_results$speed_by_route_dir_plot[[1]]
 # to do - scale x axis on all plots so that they are the same
 
 #primary_patterns <- code_patterns(full_corridor_dat$dat[[1]]) %>% filter(pattern_type == "primary") %>% select(pattern_id) %>% as.list()
+routes <- unique(full_corridor_dat[[2]])
+dirs <- unique(full_corridor_dat[[3]])
 
-plot_joyplot_runtimes(full_corridor_dat, route_num = 18, direction = "Eastbound", pattern_list = primary_patterns[[1]])
-plot_joyplot_runtimes(full_corridor_dat, route_num = 26, direction = "Eastbound", pattern_list = primary_patterns[[1]])
-
-plot_joyplot_runtimes(full_corridor_dat, route_num = 18, direction = "Westbound", pattern_list = primary_patterns[[1]])
-plot_joyplot_runtimes(full_corridor_dat, route_num = 26, direction = "Westbound", pattern_list = primary_patterns[[1]])
+for(l in dirs){
+  d<-l[[1]]
+  for(i in routes){
+    r<-i[[1]]
+    print(plot_joyplot_runtimes(full_corridor_dat, route_num = r, direction = d, pattern_list = primary_patterns[[1]]))
+  }
+}
 
 ```
 

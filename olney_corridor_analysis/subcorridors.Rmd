@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 ```
-### `r subcorridor_results_line$subcorridor_name ` Analytics 
+### `r subcorridor_results_line$corridor_name` Analytics 
 
 Interpretation 
 
@@ -55,7 +55,15 @@ subcorridor_results_line$speed_by_route_dir_plot[[1]]
 
 ```{r , echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
 
-# NEED - develop a reliability plot or two
+# for loop to print all of the plots, but still need to figure out how to instead put these into the results df
+for(l in dirs){
+  d<-l[[1]]
+  for(i in routes){
+    r<-i[[1]]
+    plot_joyplot_runtimes(subcorridors_results_line, route_num = r, direction = d, pattern_list = primary_patterns[[1]])
+  }
+}
+
 
 ```
 
