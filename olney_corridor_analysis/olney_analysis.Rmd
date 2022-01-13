@@ -38,6 +38,8 @@ library(plotly)
 library(parallel)
 library(furrr)
 library(leafpop)
+library(ggridges)
+library(hrbrthemes)
 
 options(tigris_class = "sf") # tells tidycensus to download Census geometries in the sf or Simple Feature format
 
@@ -297,20 +299,27 @@ full_corridor_results$speed_by_route_dir_plot[[1]]
 #### Reliability
 ```{r reliability_plots, echo=FALSE, out.width='100%', fig.height = 8, warning=FALSE}
 
-# to do - create a df of these plots so it's automated to n where n = routes * directions
 # to do - scale x axis on all plots so that they are the same
 
 #primary_patterns <- code_patterns(full_corridor_dat$dat[[1]]) %>% filter(pattern_type == "primary") %>% select(pattern_id) %>% as.list()
-routes <- unique(full_corridor_dat[[2]])
-dirs <- unique(full_corridor_dat[[3]])
 
-for(l in dirs){
-  d<-l[[1]]
-  for(i in routes){
-    r<-i[[1]]
-    print(plot_joyplot_runtimes(full_corridor_dat, route_num = r, direction = d, pattern_list = primary_patterns[[1]]))
-  }
+dat <- full_corridor_dat[1, ]$dat %>% 
+  as.data.frame() 
+
+f <- function(route_num, direction) {
+  p <- plot_joyplot_runtimes(dat, route_num = route_num, direction = direction, pattern_list = primary_patterns[[1]], corridor_name = full_corridor_dat$corridor_name[[1]])
+  
+  return(p)
+  
 }
+  
+reliability_board <- dat %>% 
+  group_by(route_id, direction_id) %>% 
+  summarise() %>% 
+  mutate(joyplot = map2(route_id, direction_id, f))
+
+
+reliability_board$joyplot
 
 ```
 

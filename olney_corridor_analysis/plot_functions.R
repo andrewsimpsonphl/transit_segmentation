@@ -227,17 +227,18 @@ plot_speed_by_route_dir <- function(hourly_route_direction_analytics, corridor_n
 }
 
 
-plot_joyplot_runtimes <- function(full_df, route_num, direction = "Eastbound", pattern_list) {
+plot_joyplot_runtimes <- function(trip_dat, route_num, direction = "Eastbound", pattern_list, corridor_name) {
   
-  full_df <- full_corridor_dat$dat[[1]]
-  x <- full_df %>% ungroup() %>% 
+  #full_df <- full_corridor_dat$dat[[1]]
+  
+  x <- trip_dat %>% ungroup() %>% 
     filter(direction_id == direction & route_id == route_num & pattern_id %in% pattern_list) %>%
     mutate(time_bin = (trip_begin %>% lubridate::as_datetime(format = "%H:%M:%S") %>% hour())) %>% 
     arrange(time_bin) %>% 
     mutate(time_bin = as.factor(time_bin))
   
   title_txt = paste0("Corridor Run Times by Time of Day")
-  subtitle_txt = paste0("Route ", route_num, " - ", direction)
+  subtitle_txt = paste0("Route ", route_num, " - ", direction, " - ", corridor_name)
   
   #subtitle = make_subtitle(filtered_df)
   
