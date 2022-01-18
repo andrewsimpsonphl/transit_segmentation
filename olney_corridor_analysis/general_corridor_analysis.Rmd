@@ -1,0 +1,504 @@
+---
+title: "Olney Corridor Analysis"
+author: "City of Philadelphia"
+date: "12/6/2021"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    code_folding: hide
+  pdf_document:
+    toc: yes
+params:
+  full_corridor_name: "Olney Avenue"
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+
+source("../code/segmentation_code.R")
+source("../olney_corridor_analysis/plot_functions.R")
+
+library(tinytex)
+library(tidyverse); library(tidycensus)
+library(reactable) ; library(shiny)
+library(sf) ; library(sp)
+library(tidyverse)
+library(rgeos)
+library(xlsx)
+library(kableExtra)
+library(rphl) 
+library(viridis)
+library(gridExtra)
+library(scales)
+library(leaflet)
+library(leaflet.mapboxgl)
+library(leaflet.extras)
+library(plotly)
+library(parallel)
+library(furrr)
+library(leafpop)
+library(ggridges)
+library(hrbrthemes)
+
+options(tigris_class = "sf") # tells tidycensus to download Census geometries in the sf or Simple Feature format
+
+# setup multi core functionality
+numCores <- detectCores()
+plan(multisession, workers = numCores)
+
+full_corridor_name <- params$full_corridor_name
+
+```
+
+```{r helper_functions, include=FALSE, message=FALSE}
+
+# helper function that takes in a list of stops and the global apc_data data to run the find_trip_dat_v2 function 
+help_find_trip_dat <- function(list) {
+    suppressMessages(find_trip_dat_v2(apc_data, list))
+    #print(paste("Analyzing trip", .$FINAL_ID))
+    #mem_used()
+}
+
+help_find_stop_dat <- function(stop_list) {
+  output <- find_stop_dat(apc_data, stop_list)
+  
+  return(output)
+}
+
+# helper function to create a readable sentence version of a list of routes (or stops)
+create_route_sentence <- function(route_list) {
+  
+  first_routes <- (route_list[1:length(route_list)-1] %>% unlist()) %>% paste0(sep = ", ", collapse = '')
+  last_route <- route_list[length(route_list)]
+  
+  output <- paste0(first_routes, "and ", last_route)
+  
+  return(output)
+}
+
+#import apc trip data
+import_apc <- function() {
+  #apc_trip_data <- read_feather("./data/preped_apc_data.feather")
+  apc_trip_data <- read.csv("../data/combined_apc_dataset.csv") %>% mutate(stop_id = paste0(agency_id, stop_id))
+  
+  output <- apc_trip_data %>% adjust_dwell_and_velo()
+  
+  return(output)
+}
+```
+
+```{r assemble_data, include=FALSE, message=FALSE}
+
+apc_data <- import_apc()
+
+## ASSEMBLE FULL CORRIDOR DATA ##
+stop_list <- list(c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919","SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910","SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962"))
+
+corridor_name <- c(full_corridor_name)
+corridor_id <- c("full")
+full_corridor_dat <- data.frame(corridor_id,corridor_name, I(stop_list)) %>%
+  mutate(dat = map(stop_list, help_find_trip_dat),
+         analytics = future_map(dat, analyze_segment),
+         route_analytics = future_map(dat, analyze_segment_route),
+         binned_analytics = future_map(dat, suppressWarnings(analyze_segment_hourbin)),
+         hourly_analytics = future_map(dat, suppressWarnings(analyze_segment_hourly)),
+         hourly_route_analytics = future_map(dat, suppressWarnings(analyze_segment_route_hourly)),
+         hourly_route_direction_analytics = future_map(dat,suppressWarnings(analyze_segment_route_direction_hourly))
+         )
+
+full_corridor_results <- full_corridor_dat %>% 
+  mutate(daily_ridership_trips_plot = future_map(route_analytics, plot_daily_ridership_trips, corridor_name),
+         hourly_speed_plot = future_map(hourly_analytics, plot_hourly_speed, corridor_name),
+         ridership_by_period_plot = future_map(binned_analytics, plot_ridership_by_period, corridor_name),
+         ridership_by_route_plot = future_map(hourly_route_analytics, plot_ridership_by_route, corridor_name),
+         ridership_by_route_dir_plot = future_map(hourly_route_direction_analytics, plot_ridership_by_route_dir, corridor_name),
+         service_hrs_plot = future_map(route_analytics, plot_service_hrs, corridor_name),
+         speed_by_period_plot = future_map(binned_analytics, plot_speed_by_period, corridor_name),
+         speed_by_route_dir_plot = future_map(hourly_route_direction_analytics, plot_speed_by_route_dir, corridor_name)
+         )
+
+## CORRIDOR LEVEL STOP DATA ##
+full_stop_data <- full_corridor_dat %>% 
+  select(corridor_id, stop_list) %>% 
+  mutate(stop_trip_dat = map(stop_list, help_find_stop_dat)) %>% 
+  mutate(daily_stop_analytics = map(stop_trip_dat, analyze_stops_daily),
+         stop_route_analytics = map(stop_trip_dat, analyze_stops_routes_daily),
+         stop_route_binned_analytics = map(stop_trip_dat, suppressWarnings(analyze_stops_routes_hourbin)),
+         stop_route_hourly_analytics = map(stop_trip_dat, suppressWarnings(analyze_stops_routes_hourly)))
+
+## ASSEMBLE SUBCORRIDOR DATA ##
+
+# create a new section where we create subcorridor data
+# I added Olney as a whole into this df to test out the plot functions, could take it out later
+stop_list <- I(list(c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919"),c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910"),c("SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")))
+corridor_name <- c("Chelten to Broad", "Broad to 7th", "7th to Front")
+corridor_id <- c("CB","B7","7F")
+subcorridors <- data.frame(corridor_id,corridor_name,stop_list)
+
+# map find_trip_dat across the corridors and save that data as dat
+# also maps binned, hourly, route, and direction analytics
+subcorridors_dat <- subcorridors %>%
+  mutate(dat = future_map(stop_list, help_find_trip_dat),
+         analytics = future_map(dat, analyze_segment),
+         route_analytics = future_map(dat, analyze_segment_route),
+         binned_analytics = future_map(dat, suppressWarnings(analyze_segment_hourbin)),
+         hourly_analytics = future_map(dat, suppressWarnings(analyze_segment_hourly)),
+         hourly_route_analytics = future_map(dat, suppressWarnings(analyze_segment_route_hourly)),
+         hourly_route_direction_analytics = future_map(dat,suppressWarnings(analyze_segment_route_direction_hourly))
+  )
+
+# map plots to subcorridors_dat 
+subcorridors_results <- subcorridors_dat %>% 
+  mutate(daily_ridership_trips_plot = future_map2(route_analytics, corridor_name, plot_daily_ridership_trips),
+         hourly_speed_plot = future_map2(hourly_analytics, corridor_name, plot_hourly_speed),
+         ridership_by_period_plot = future_map2(binned_analytics, corridor_name, plot_ridership_by_period),
+         ridership_by_route_plot = future_map2(hourly_route_direction_analytics, corridor_name, plot_ridership_by_route),
+         ridership_by_route_dir_plot = future_map2(hourly_route_direction_analytics, corridor_name, plot_ridership_by_route_dir),
+         service_hrs_plot = future_map2(route_analytics, corridor_name, plot_service_hrs),
+         speed_by_period_plot = future_map2(binned_analytics, corridor_name, plot_speed_by_period),
+         speed_by_route_dir_plot = future_map2(hourly_route_direction_analytics, corridor_name, plot_speed_by_route_dir)
+         )
+
+comparison_df <- full_corridor_results %>% 
+  bind_rows(subcorridors_results)
+
+
+#create_stops()
+stops_w_ridership <- st_read("../data/stops_ridership.geojson", quiet = TRUE) %>% 
+    mutate_if(is.factor, as.character) %>% 
+    mutate(route_list = as.list(strsplit(as.character(route_str), ",")))
+#create_routes()
+routes_w_ridership <- st_read("../data/routes_ridership.geojson", quiet = TRUE) %>% mutate_if(is.factor, as.character)
+# import links
+links <- st_read("../data/links_with_stops.geojson", quiet = TRUE) 
+link_stop_data <- links %>% mutate(fromto = as.character(fromto), secondLocationID = as.character(secondLocationID)) %>% 
+    mutate(stop_list = as.list(strsplit(as.character(stop_str), ","))) 
+
+#alltracts <- st_read("https://opendata.arcgis.com/datasets/8bc0786524a4486bb3cf0f9862ad0fbf_0.geojson", quiet = TRUE)
+#restrict to just tracts that stops are in
+
+#pulling the acs data
+acs_trans <- c("B08301_001", #workers
+              "B08301_002", #means of transportation to work: car
+              "B08301_003", #means of transportation to work: car, drove alone
+              "B08301_010", #means of transportation to work: public transit
+              "B08301_011", #means of transportation to work: public transit, bus
+              "B08301_012", #means of transportation to work: public transit, subway
+              "B08301_013", #means of transportation to work: public transit, commuter rail
+              "B08301_014", #means of transportation to work: public transit, light rail/trolley
+              "B08301_016", #means of transportation to work: taxicab
+              "B08301_018", #means of transportation to work: bicycle
+              "B08301_019", #means of transportation to work: walked
+              "B08301_021" #means of transportation to work: wfh
+              )
+
+routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% full_corridor_results$dat[[1]]$route_id)
+
+
+
+# helper data set that is a list of stops in order on the corridor 
+# to-do - create a function that returns ordered stop data based on whether it is more of an east-west route or a north-south route
+# if it's an east/west route - order it by longitude, if it's a north/south route, order by stop_lat
+ordered_stop_dat <- full_stop_data$stop_trip_dat[[1]] %>% 
+  group_by(stop_id, stop_name, stop_lat, stop_lon) %>% 
+  summarise() %>% 
+  mutate(stop_name_2 = stop_name) %>% 
+  separate(stop_name_2, c("on_street", "at_street"), sep = "&") %>% 
+  arrange(stop_lon)
+
+
+# create list of route patterns that are "primary" i.e. server all stops on corridor 
+primary_patterns <- code_patterns(full_corridor_dat$dat[[1]]) %>% filter(pattern_type == "primary") %>% select(pattern_id) %>% as.list()
+
+hourly_velo_avg <- apc_data %>% group_by(hour_bin) %>% summarise(n = n(), avg_velo = mean(velocity, na.rm = TRUE)) %>% filter(hour_bin < 24)
+
+```
+
+## Overall Corridor Analysis
+
+### Overview
+
+The `r full_corridor_name` transit corridor runs along `r ordered_stop_dat$on_street %>% unique() %>% create_route_sentence()` between `r first(ordered_stop_dat$at_street)` and `r last(ordered_stop_dat$at_street)`. The corridor serves the routes `r create_route_sentence(unique(full_stop_data$stop_route_analytics[[1]]$route_id))`. There are `r length(full_stop_data$daily_stop_analytics[[1]]$stop_id)` total bus stops along the corridor. The corridor directly served `r full_corridor_dat$analytics[[1]]$daily_ridership` riders per day in 2019.
+
+```{r pattern_table, echo=FALSE, out.width='100%', warning=FALSE}
+table <- code_patterns(full_corridor_dat$dat[[1]])
+reactable(table,
+          defaultColDef = colDef(
+    header = function(value) gsub(".", " ", value, fixed = TRUE),
+    cell = function(value) format(value, nsmall = 1),
+    align = "center",
+    minWidth = 70,
+    headerStyle = list(background = "#f7f7f8")
+  ),
+  columns = list(
+    Species = colDef(minWidth = 140)  # overrides the default
+  ),
+  bordered = TRUE,
+  highlight = TRUE
+)
+# kable(table, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
+#   kable_styling(latex_options = "scale_down")  %>%
+#   #row_spec(dim(table)[1], bold = T) %>% # format last row
+#   column_spec(1, italic = T) %>%  # format first column
+#   scroll_box(width = "100%", height = "200px")
+
+```
+
+
+```{r corridor_table, echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
+
+table_1 <- full_corridor_results$route_analytics[[1]] %>% bind_rows(full_corridor_results$analytics[[1]] %>% mutate(route_id = "Total"))
+kable(table_1, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
+  kable_styling(latex_options = "scale_down")  %>%
+  row_spec(dim(table_1)[1], bold = T) %>% # format last row
+  column_spec(1, italic = T) %>%  # format first column
+  scroll_box(width = "100%", height = "200px")
+```
+
+
+``` {r hourly_trips,echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE } 
+
+plot_trips_per_hour(full_corridor_dat$hourly_route_analytics[[1]])
+
+```
+
+
+### Weekday Ridership
+
+The `r full_corridor_name` corridor moves `r round(full_corridor_dat$analytics[[1]]$daily_ridership, 0)` transit passengers per day. The peak hour for transit passenger movement on the corridor is `r (full_corridor_dat$hourly_analytics[[1]] %>% filter(daily_ridership == max(daily_ridership)))$trip_hour`. At the peak hour, the corridor serves `r (full_corridor_dat$hourly_analytics[[1]] %>% filter(daily_ridership == max(daily_ridership)))$daily_ridership`  riders. 
+
+```{r ridership_plots, echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
+full_corridor_results$ridership_by_period_plot[[1]]
+full_corridor_results$ridership_by_route_plot[[1]]
+full_corridor_results$ridership_by_route_dir_plot[[1]]
+
+# to do - make a matrix of plots showing route x direction, not stacked
+
+```
+
+### Speed and Reliability
+Speed and reliability are two of the most important aspects governing how attractive transit is to the customer. 
+
+There is, however, an important distinction between transit speed and transit reliability:
+
+- Speed is how fast the vehicle is moving through the corridor.
+- Reliability is how consistent those speeds are, throughout a day or another period of time. 
+
+Oftentimes, qualitative research on transit finds that riders remember their worst trip much more vividly than their average (or even their best) trips. This is where reliability is key - providing customers with a consistent trip time is just as important as a fast trip time, because when they budget time for future trips, they have to be reasonably sure that the time budgeted will represent the majority of potential travel time outcomes.
+
+#### Bus Speeds
+```{r speed_plots, echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
+
+full_corridor_results$hourly_speed_plot[[1]]
+full_corridor_results$speed_by_period_plot[[1]]
+full_corridor_results$speed_by_route_dir_plot[[1]]
+
+```
+
+#### Reliability
+```{r reliability_plots, echo=FALSE, out.width='100%', fig.height = 8, warning=FALSE}
+
+# to do - scale x axis on all plots so that they are the same
+
+#primary_patterns <- code_patterns(full_corridor_dat$dat[[1]]) %>% filter(pattern_type == "primary") %>% select(pattern_id) %>% as.list()
+
+dat <- full_corridor_dat[1, ]$dat %>% 
+  as.data.frame() 
+
+f <- function(route_num, direction) {
+  p <- plot_joyplot_runtimes(dat, route_num = route_num, direction = direction, pattern_list = primary_patterns[[1]], corridor_name = full_corridor_dat$corridor_name[[1]])
+  
+  return(p)
+  
+}
+  
+reliability_board <- dat %>% 
+  group_by(route_id, direction_id) %>% 
+  summarise() %>% 
+  mutate(joyplot = map2(route_id, direction_id, f))
+
+
+reliability_board$joyplot
+
+```
+
+### Travel Times
+Corridor-level travel time is simply the amount of time it takes the bus to travel from one end of the corridor to another. In this case, it is show separated by route and by direction and is averaged for each hour. 
+```{r running_time_plots, echo=FALSE, out.width='100%', fig.height = 8, warning=FALSE}
+
+plot_running_time(full_corridor_results[1, ], full_corridor_results$corridor_name[[1]], primary_patterns[[1]])
+
+
+```
+
+### Service Hours
+Service hours are a measure of how much transit is operated on the corridor. It is simply the sum of all of the runtime on the corridor over a period of time. Service hours is  a product of how much transit is provide, but it is also a product of the speed of operations on a corridor. Transit productivity is often measured in terms of service hours because it is the most direct input into the cost of running the service. 
+```{r service_hours_plots, echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
+
+full_corridor_results$service_hrs_plot[[1]]
+
+```
+
+## Sub-Corridor Analysis
+
+
+```{r subcorridors, echo=FALSE, results='asis'}
+i = 1
+for(i in 1:length(subcorridors_results$corridor_id)){
+  
+  knitrenv <- new.env()
+  assign("subcorridor_results_line", subcorridors_results[i, ], knitrenv)
+  
+  res <- knitr::knit_child('subcorridors.Rmd', quiet = TRUE, envir = knitrenv)
+  cat(res, sep = '\n')
+  
+}
+
+
+```
+
+### Sub-Corridor Comparison
+
+```{r speed_comparison, include=TRUE, message=FALSE}
+
+plot_speed_corridor_comparison(comparison_df)
+
+```
+
+## Stop Level Analysis 
+
+### Stop Level Map 
+
+```{r leaflet_stop_map, include=TRUE, message=FALSE}
+
+label_stops <- function(dat) {
+  
+  daily <- dat$daily_stop_analytics
+  hourly <- dat$stop_route_hourly_analytics
+    
+  paste0( "Stop:", daily[[i]]$stop_name , "<br>",
+          "Stop ID: ", daily$stop_id, "<br>",
+          "Daily Boards", daily$total_ons, "<br>",
+          "Daily Leaves", daily$total_ons, "<br>",
+          "Maximum Hourly Dwell: ", hourly$avg_dwell_hybrid)
+  
+}
+
+# map of stops that on the corridor
+leaflet() %>%
+  setView(lng = mean(full_stop_data$daily_stop_analytics[[1]]$stop_lon, na.rm=TRUE), 
+          lat = mean(full_stop_data$daily_stop_analytics[[1]]$stop_lat, na.rm=TRUE), zoom = 14) %>% 
+  addProviderTiles(providers$Stamen.Toner) %>% 
+  addCircleMarkers(full_stop_data$daily_stop_analytics[[1]], 
+                   lat = full_stop_data$daily_stop_analytics[[1]]$stop_lat, 
+                   lng = full_stop_data$daily_stop_analytics[[1]]$stop_lon, 
+                   radius = log((full_stop_data$daily_stop_analytics[[1]]$total_ons + 
+                               (full_stop_data$daily_stop_analytics[[1]]$total_offs)))*2.55, 
+                   color = "blue", 
+                   popup = popupTable(full_stop_data$daily_stop_analytics[[1]]))
+
+
+# also add chart/table of global averages for context of subcorridors
+```
+
+### Daily Analytics by Stop Table 
+
+```{r stop_daily_table, include=TRUE, message=FALSE}
+table_2 <- full_stop_data$daily_stop_analytics[[1]] %>% select(-c(avg_speed, stop_lat, stop_lon))
+ 
+# kable(table_2, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
+#   kable_styling(latex_options = "scale_down")  %>%
+#   row_spec(dim(table_1)[1], bold = T) %>% # format last row
+#   column_spec(1, italic = T) %>%  # format first column
+#   scroll_box(width = "100%", height = "300px")
+
+reactable(table_2,
+    filterable = TRUE,
+    resizable = TRUE,
+    columns = list(
+    # route_id = colDef(
+    #   sticky = "left",
+    #   headerStyle = list(borderRight = "1px solid #eee")
+    # ),
+    # direction_id = colDef(
+    #   sticky = "left",
+    #   headerStyle = list(borderRight = "1px solid #eee")
+    # ),
+    # stop_id = colDef(
+    #   sticky = "left",
+    #   headerStyle = list(borderRight = "1px solid #eee")
+    # ),
+    # stop_name = colDef(
+    #   sticky = "left",
+    #   # Add a right border style to visually distinguish the sticky column
+    #   style = list(borderRight = "1px solid #eee"),
+    #   headerStyle = list(borderRight = "1px solid #eee")
+    # ),
+      #total_trips = colDef(aggregate = "max"),
+      #avg_headway = colDef(aggregate = "mean", format = colFormat(digits = 1)),
+      total_ons = colDef(aggregate = "sum", format = colFormat(digits = 0)),
+      total_offs = colDef(aggregate = "sum", format = colFormat(digits = 0)),
+      avg_load = colDef(format = colFormat(digits = 0)),
+      avg_dwell_observed = colDef(format = colFormat(digits = 2)),
+      avg_dwell_estimated = colDef(format = colFormat(digits = 2)),
+      avg_dwell_hybrid = colDef(format = colFormat(digits = 2)),
+      avg_dwell_per_pass_hybrid = colDef(format = colFormat(digits = 2))
+    )
+)
+
+```
+
+### Daily Analytics by Stop/Route Table
+- User input to add/subtracts routes - i.e. pull from the route level data? 
+
+``` {r stop_route_daily_table, include=TRUE, message=FALSE, fig.height = 5}
+
+table_3 <- full_stop_data$stop_route_analytics[[1]] %>% select(route_id, direction_id, everything()) %>% select(-c(routes, avg_speed, stop_lat, stop_lon)) %>%  group_by(route_id, direction_id) %>% dplyr::arrange(route_id, direction_id, stop_lon)
+
+reactable(
+  table_3,
+  #filterable = TRUE,
+  groupBy = c("route_id", "direction_id"),
+  pagination = FALSE, 
+  resizable = TRUE,
+  height = 500,
+  columns = list(
+    # route_id = colDef(
+    #   sticky = "left",
+    #   headerStyle = list(borderRight = "1px solid #eee")
+    # ),
+    # direction_id = colDef(
+    #   sticky = "left",
+    #   headerStyle = list(borderRight = "1px solid #eee")
+    # ),
+    # stop_id = colDef(
+    #   sticky = "left",
+    #   headerStyle = list(borderRight = "1px solid #eee")
+    # ),
+    # stop_name = colDef(
+    #   sticky = "left",
+    #   # Add a right border style to visually distinguish the sticky column
+    #   style = list(borderRight = "1px solid #eee"),
+    #   headerStyle = list(borderRight = "1px solid #eee")
+    # ),
+    total_trips = colDef(aggregate = "max"),
+    avg_headway = colDef(aggregate = "mean", format = colFormat(digits = 1)),
+    total_ons = colDef(aggregate = "sum", format = colFormat(digits = 1)),
+    total_offs = colDef(aggregate = "sum", format = colFormat(digits = 1)),
+    avg_load = colDef(aggregate = "mean", format = colFormat(digits = 1)),
+    avg_dwell_observed = colDef(aggregate = "mean", format = colFormat(digits = 1)),
+    avg_dwell_estimated = colDef(aggregate = "mean", format = colFormat(digits = 1)),
+    avg_dwell_hybrid = colDef(aggregate = "mean", format = colFormat(digits = 1)),
+    avg_dwell_per_pass_hybrid = colDef(aggregate = "mean", format = colFormat(digits = 1))
+  ),
+  defaultColDef = colDef(minWidth = 150)
+)
+
+
+
+```
+
+### Stop Profile by Route/Direction 
+
+
