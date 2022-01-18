@@ -202,10 +202,12 @@ routes <- subset(routes_w_ridership, routes_w_ridership$Route %in% full_corridor
 # if it's an east/west route - order it by longitude, if it's a north/south route, order by stop_lat
 ordered_stop_dat <- full_stop_data$stop_trip_dat[[1]] %>% 
   group_by(stop_id, stop_name, stop_lat, stop_lon) %>% 
-  summarise() %>% 
+  summarise(directions = list(unique(direction_id))) %>% 
   mutate(stop_name_2 = stop_name) %>% 
   separate(stop_name_2, c("on_street", "at_street"), sep = "&") %>% 
-  arrange(stop_lon)
+  arrange(stop_lon) %>% 
+  ungroup() %>% 
+  mutate(order = row_number())
 
 
 # create list of route patterns that are "primary" i.e. server all stops on corridor 
@@ -452,7 +454,7 @@ reactable(table_2,
 ### Daily Analytics by Stop/Route Table
 - User input to add/subtracts routes - i.e. pull from the route level data? 
 
-``` {r stop_route_daily_table, include=TRUE, message=FALSE, fig.height = 5}
+``` {r stop_route_daily_table, include=TRUE, message=FALSE}
 
 table_3 <- full_stop_data$stop_route_analytics[[1]] %>% select(route_id, direction_id, everything()) %>% select(-c(routes, avg_speed, stop_lat, stop_lon)) %>%  group_by(route_id, direction_id) %>% dplyr::arrange(route_id, direction_id, stop_lon)
 
@@ -501,4 +503,8 @@ reactable(
 
 ### Stop Profile by Route/Direction 
 
+``` {r stop_plot, include=TRUE, message=FALSE, fig.height = 10}
+plot_stops(full_stop_data, ordered_stop_dat)
+
+```
 

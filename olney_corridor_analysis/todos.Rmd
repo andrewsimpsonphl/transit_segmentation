@@ -7,10 +7,8 @@ output: html_document
 
 # Doing
 
-- Add filtering of patterns - need to QAQC
 - Add charts that compare subcorridors
 - Automate remaining text in document
-- Add reliability charts to subcorridor documents - tried to add this through a for loop, works in Rmd but not knitted
 
 # Next to-dos
 
@@ -37,3 +35,5 @@ output: html_document
 
 - Create joyplot of runtimes
 - Create functions to assist in filtering of route patterns 
+- Add filtering of patterns - need to QAQC
+- Add reliability charts to subcorridor documents 

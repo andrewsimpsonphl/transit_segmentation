@@ -290,3 +290,43 @@ plot_speed_corridor_comparison <- function(corridor_df) {
 
     return(output)  
 }
+
+
+plot_stops <- function(full_stop_data, ordered_stop_dat) {
+  
+  x <- full_stop_data$daily_stop_analytics %>% as.data.frame() %>% 
+    group_by(stop_name) %>% 
+    left_join(ordered_stop_dat) %>% 
+    arrange(order) %>% 
+    mutate(total_offs = -(total_offs)) %>% 
+    select(stop_name, stop_id, order, directions, total_ons, total_offs, avg_load) 
+  
+  y <- x %>% 
+    pivot_longer(cols = 5:6) %>% 
+    mutate(directions = as.character(directions))
+    
+  p <- ggplot(y) + 
+    geom_bar(aes(x = reorder(stop_name, order), y = value, fill = name),stat = "identity") +
+    #geom_line(data = y, aes(x = order, y = avg_load, group = directions)) +
+    theme(axis.text.x = element_text(angle = 90), axis.title = element_blank()) +
+    facet_wrap(~directions,
+               nrow = length(unique(y$directions))) +
+    scale_y_continuous(
+      
+      # Features of the first axis
+      name = "First Axis",
+      
+      # Add a second axis and specify its features
+      #sec.axis = sec_axis(~ (. /100))
+      )
+  
+  output <- ggplotly(p) %>% layout(title = list(text = paste0("Daily Passenger Activity (All Routes)"),x=0, xref="paper"),
+                                   legend = list(text = element_blank(),
+                                                 orientation = "h",   # show entries horizontally
+                                                 xanchor = "center",  # use center of legend as anchor
+                                                 x = 0.5,
+                                                 y=-0.4),
+                                   margin=list(t = 60))
+  
+  return(output)  
+}
