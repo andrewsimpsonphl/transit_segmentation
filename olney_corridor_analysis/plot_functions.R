@@ -74,12 +74,16 @@ plot_hourly_speed <- function(hourly_analytics, corridor_name){
 
 # binned_analytics is a return of analyze_segment_hourbin
 plot_ridership_by_period <- function(binned_analytics, corridor_name) {
-  p <- ggplot(binned_analytics, aes(x = timeframe, y = daily_ridership, label = daily_ridership)) + 
+  p <- ggplot(subcorridors_dat$binned_analytics[[1]], aes(x = timeframe, y = daily_ridership, label = daily_ridership)) + 
     geom_bar(stat = "identity", fill="skyblue", alpha=0.7) +
-    geom_text(position=position_dodge(width=0.9), vjust = -0.75, size = 3) +
+    geom_text(position=position_dodge(width=0.9), vjust = -.75, size = 3) +
     scale_y_continuous(name = "Total Riders Served", n.breaks = 5) + #, limits = c(0, max(binned_analytics$avg_speed_90_pct) * 1.1)) +
     scale_x_discrete(name = element_blank()) +
     theme(text = element_text(size = 9))
+  
+  # plot_ly(data=subcorridors_dat[[7]][[1]], type='bar',x=subcorridors_dat[[7]][[1]]$timeframe, y=subcorridors_dat[[7]][[1]]$daily_ridership,
+  #         text=subcorridors_dat[[7]][[1]]$daily_ridership) %>% 
+  #   layout(yaxis = list(title = 'Total Riders Served'))
   
   output <- ggplotly(p) %>% layout(title = list(text = paste0('Ridership by Period (All Routes)',
                                                               '<br />','<sup>',

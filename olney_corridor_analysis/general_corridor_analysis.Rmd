@@ -1,5 +1,5 @@
 ---
-title: "Olney Corridor Analysis"
+title: "Transit Corridor Analysis"
 author: "City of Philadelphia"
 date: "12/6/2021"
 output:
@@ -10,7 +10,7 @@ output:
   pdf_document:
     toc: yes
 params:
-  full_corridor_name: "Olney Avenue"
+  full_corridor_name: "Cecil B. Moore Ave"
 ---
 
 ```{r setup, include=FALSE, message=FALSE}
@@ -50,6 +50,8 @@ plan(multisession, workers = numCores)
 full_corridor_name <- params$full_corridor_name
 
 ```
+
+# `r full_corridor_name`
 
 ```{r helper_functions, include=FALSE, message=FALSE}
 
@@ -93,7 +95,7 @@ import_apc <- function() {
 apc_data <- import_apc()
 
 ## ASSEMBLE FULL CORRIDOR DATA ##
-stop_list <- list(c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919","SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910","SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962"))
+stop_list <- list(c("SEPTA2659","SEPTA2665","SEPTA17162","SEPTA17277","SEPTA25385","SEPTA25475","SEPTA25384","SEPTA25476","SEPTA25383","SEPTA25477","SEPTA53","SEPTA58","SEPTA16865","SEPTA16113","SEPTA25471","SEPTA25389","SEPTA25388","SEPTA25472","SEPTA25387","SEPTA25473","SEPTA25386","SEPTA25474","SEPTA25391","SEPTA25470","SEPTA25390"))
 
 corridor_name <- c(full_corridor_name)
 corridor_id <- c("full")
@@ -131,9 +133,9 @@ full_stop_data <- full_corridor_dat %>%
 
 # create a new section where we create subcorridor data
 # I added Olney as a whole into this df to test out the plot functions, could take it out later
-stop_list <- I(list(c("SEPTA372","SEPTA15911","SEPTA15794", "SEPTA15912", "SEPTA15789", "SEPTA15915", "SEPTA15586", "SEPTA15793", "SEPTA15913","SEPTA15791", "SEPTA15914", "SEPTA15792", "SEPTA15786", "SEPTA15916", "SEPTA15782", "SEPTA15917", "SEPTA15587", "SEPTA16979", "SEPTA15779", "SEPTA15918", "SEPTA15919"),c("SEPTA15796", "SEPTA15908", "SEPTA15798", "SEPTA15907", "SEPTA15799", "SEPTA15800", "SEPTA16966", "SEPTA15814", "SEPTA16965", "SEPTA381", "SEPTA15795", "SEPTA373", "SEPTA15910"),c("SEPTA16963", "SEPTA15815", "SEPTA16964", "SEPTA15817","SEPTA15819", "SEPTA16961", "SEPTA32312", "SEPTA16960", "SEPTA15820", "SEPTA16959", "SEPTA15822", "SEPTA15697", "SEPTA15899", "SEPTA15818", "SEPTA16962")))
-corridor_name <- c("Chelten to Broad", "Broad to 7th", "7th to Front")
-corridor_id <- c("CB","B7","7F")
+stop_list <- I(list(c("SEPTA2659","SEPTA2665","SEPTA17162","SEPTA17277","SEPTA25385","SEPTA25475","SEPTA25384","SEPTA25476","SEPTA25383","SEPTA25477","SEPTA53","SEPTA58"),c("SEPTA16865","SEPTA16113","SEPTA25471","SEPTA25389","SEPTA25388","SEPTA25472","SEPTA25387","SEPTA25473","SEPTA25386","SEPTA25474","SEPTA25391","SEPTA25470","SEPTA25390")))
+corridor_name <- c("17th to Broad", "Broad to 9th")
+corridor_id <- c("17B","B9")
 subcorridors <- data.frame(corridor_id,corridor_name,stop_list)
 
 # map find_trip_dat across the corridors and save that data as dat
