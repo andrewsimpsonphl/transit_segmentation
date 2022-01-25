@@ -168,7 +168,7 @@ adjust_dwell_and_velo <- function(apc_data) {
 #import apc trip data
 import_apc <- function() {
   #apc_trip_data <- read_feather("./data/preped_apc_data.feather")
-  apc_trip_data <- read.csv("./data/combined_apc_dataset.csv") %>% 
+  apc_trip_data <- read.csv("../data/combined_apc_dataset.csv") %>% 
     mutate(stop_id = paste0(agency_id, stop_id))
   
   output <- apc_trip_data %>% adjust_dwell_and_velo()
@@ -706,11 +706,13 @@ analyze_segment_route_direction_hourly <- function(trip_dat) {
 
 
 find_stop_dat <- function(apc_trip_data = apc_data, stop_list) {
-  filtered_dat <- filter_trip_list(apc_trip_data, stop_list) %>% adjust_dwell_and_velo()
+  filtered_dat <- filter_trip_list(apc_data, stop_list) %>% 
+    adjust_dwell_and_velo() %>% 
+    filter(stop_id %in% stop_list) %>% # filter from larger list
+    group_by(trip_id) %>% 
+    filter(n() > 1) # filter to more than one stop on corridor
   
-  output <- filtered_dat %>% filter(stop_id %in% stop_list)
-  
-  return(output)
+  return(filtered_dat)
 }
 
 
