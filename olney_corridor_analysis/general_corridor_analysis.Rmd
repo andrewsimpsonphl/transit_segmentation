@@ -1,7 +1,7 @@
 ---
 title: "Transit Corridor Analysis"
 author: "City of Philadelphia"
-date: "12/6/2021"
+date: "`r Sys.Date()`"
 output:
   html_document:
     toc: yes
