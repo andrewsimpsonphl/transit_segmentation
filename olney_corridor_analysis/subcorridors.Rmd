@@ -14,8 +14,6 @@ library(tidyverse)
 ```
 ### `r subcorridor_results_line$corridor_name` Analytics 
 
-Interpretation 
-
 #### Subcorridor Daily Analytics
 ```{r echo=FALSE}
 
@@ -58,12 +56,15 @@ subcorridor_results_line$speed_by_route_dir_plot[[1]]
 dat <- subcorridor_results_line[1, ]$dat %>% 
   as.data.frame()
 
+max_dur <- lubridate::as.duration(max(dat$run))
+min_dur <- lubridate::as.duration(min(dat$run))
+
 # get subcorridor specific pattern codings - 
 #   in practice, this means that subcorridors will have as many or more primary patterns than full corrides, since some patterns are "primary" on a subcorridor but not on the full corridor
 primary_patterns <- code_patterns(subcorridor_results_line$dat[[1]]) %>% filter(pattern_type == "primary") %>% select(pattern_id) %>% as.list()
 
 f <- function(route_num, direction) {
-  p <- plot_joyplot_runtimes(dat, route_num = route_num, direction = direction, pattern_list = primary_patterns[[1]], corridor_name = subcorridor_results_line$corridor_name[[1]])
+  p <- plot_joyplot_runtimes(dat, route_num = route_num, direction = direction, pattern_list = primary_patterns[[1]], corridor_name = subcorridor_results_line$corridor_name[[1]], min_dur, max_dur)
   
   return(p)
   

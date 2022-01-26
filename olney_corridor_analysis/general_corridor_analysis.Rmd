@@ -132,7 +132,6 @@ full_stop_data <- full_corridor_dat %>%
 ## ASSEMBLE SUBCORRIDOR DATA ##
 
 # create a new section where we create subcorridor data
-# I added Olney as a whole into this df to test out the plot functions, could take it out later
 stop_list <- I(list(c("SEPTA2659","SEPTA2665","SEPTA17162","SEPTA17277","SEPTA25385","SEPTA25475","SEPTA25384","SEPTA25476","SEPTA25383","SEPTA25477","SEPTA53","SEPTA58"),c("SEPTA16865","SEPTA16113","SEPTA25471","SEPTA25389","SEPTA25388","SEPTA25472","SEPTA25387","SEPTA25473","SEPTA25386","SEPTA25474","SEPTA25391","SEPTA25470","SEPTA25390")))
 corridor_name <- c("17th to Broad", "Broad to 9th")
 corridor_id <- c("17B","B9")
@@ -239,11 +238,7 @@ reactable(table,
   bordered = TRUE,
   highlight = TRUE
 )
-# kable(table, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
-#   kable_styling(latex_options = "scale_down")  %>%
-#   #row_spec(dim(table)[1], bold = T) %>% # format last row
-#   column_spec(1, italic = T) %>%  # format first column
-#   scroll_box(width = "100%", height = "200px")
+
 
 ```
 
@@ -251,11 +246,26 @@ reactable(table,
 ```{r corridor_table, echo=FALSE, out.width='100%', fig.height = 5, warning=FALSE}
 
 table_1 <- full_corridor_results$route_analytics[[1]] %>% bind_rows(full_corridor_results$analytics[[1]] %>% mutate(route_id = "Total"))
-kable(table_1, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
-  kable_styling(latex_options = "scale_down")  %>%
-  row_spec(dim(table_1)[1], bold = T) %>% # format last row
-  column_spec(1, italic = T) %>%  # format first column
-  scroll_box(width = "100%", height = "200px")
+
+reactable(table_1,
+          defaultColDef = colDef(
+    header = function(value) gsub(".", " ", value, fixed = TRUE),
+    cell = function(value) format(value, nsmall = 1),
+    align = "center",
+    minWidth = 70,
+    headerStyle = list(background = "#f7f7f8")
+  ),
+  columns = list(
+    Species = colDef(minWidth = 140)  # overrides the default
+  ),
+  bordered = TRUE,
+  highlight = TRUE
+)
+# kable(table_1, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
+#   kable_styling(latex_options = "scale_down")  %>%
+#   row_spec(dim(table_1)[1], bold = T) %>% # format last row
+#   column_spec(1, italic = T) %>%  # format first column
+#   scroll_box(width = "100%", height = "200px")
 ```
 
 
@@ -274,7 +284,6 @@ The `r full_corridor_name` corridor moves `r round(full_corridor_dat$analytics[[
 full_corridor_results$ridership_by_period_plot[[1]]
 full_corridor_results$ridership_by_route_plot[[1]]
 full_corridor_results$ridership_by_route_dir_plot[[1]]
-
 # to do - make a matrix of plots showing route x direction, not stacked
 
 ```
@@ -308,8 +317,11 @@ full_corridor_results$speed_by_route_dir_plot[[1]]
 dat <- full_corridor_dat[1, ]$dat %>% 
   as.data.frame() 
 
+max_dur <- lubridate::as.duration(max(dat$run))
+min_dur <- lubridate::as.duration(min(dat$run))
+
 f <- function(route_num, direction) {
-  p <- plot_joyplot_runtimes(dat, route_num = route_num, direction = direction, pattern_list = primary_patterns[[1]], corridor_name = full_corridor_dat$corridor_name[[1]])
+  p <- plot_joyplot_runtimes(dat, route_num = route_num, direction = direction, pattern_list = primary_patterns[[1]], corridor_name = full_corridor_dat$corridor_name[[1]], min_dur, max_dur)
   
   return(p)
   

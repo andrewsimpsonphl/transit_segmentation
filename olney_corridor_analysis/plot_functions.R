@@ -231,10 +231,11 @@ plot_speed_by_route_dir <- function(hourly_route_direction_analytics, corridor_n
 }
 
 
-plot_joyplot_runtimes <- function(trip_dat, route_num, direction = "Eastbound", pattern_list, corridor_name) {
+plot_joyplot_runtimes <- function(trip_dat, route_num, direction = "Eastbound", pattern_list, corridor_name, min_dur, max_dur) {
   
   #full_df <- full_corridor_dat$dat[[1]]
-  
+  min <- min_dur
+  max <- max_dur
   x <- trip_dat %>% ungroup() %>% 
     filter(direction_id == direction & route_id == route_num & pattern_id %in% pattern_list) %>%
     mutate(time_bin = (trip_begin %>% lubridate::as_datetime(format = "%H:%M:%S") %>% hour())) %>% 
@@ -250,7 +251,7 @@ plot_joyplot_runtimes <- function(trip_dat, route_num, direction = "Eastbound", 
   p <- ggplot(x, aes(x = lubridate::as.duration(run), y = (time_bin), fill = ..x..)) +
       geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
       scale_fill_viridis(name = "Temp. [F]", option = "C") +
-      scale_x_time() +
+      scale_x_time(limits = c(min,max)) +
       theme_ipsum() +
       theme(
         legend.position="none",
