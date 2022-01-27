@@ -308,9 +308,9 @@ full_corridor_results$speed_by_route_dir_plot[[1]]
 ```
 
 #### Reliability
-```{r reliability_plots, echo=FALSE, out.width='100%', fig.height = 8, warning=FALSE}
 
-# to do - scale x axis on all plots so that they are the same
+These plots show the variation in density of run times within each hour of the day. Narrower, higher curves indicate a concentration of run times; in other words, most run times within the hour were about the same. Wider, flatter curves indicate the opposite, that there was large variation in the sampled run times.
+```{r reliability_plots, echo=FALSE, out.width='100%', fig.height = 8, warning=FALSE}
 
 #primary_patterns <- code_patterns(full_corridor_dat$dat[[1]]) %>% filter(pattern_type == "primary") %>% select(pattern_id) %>% as.list()
 
@@ -369,7 +369,6 @@ for(i in 1:length(subcorridors_results$corridor_id)){
   
 }
 
-
 ```
 
 ### Sub-Corridor Comparison
@@ -419,7 +418,7 @@ leaflet() %>%
 ### Daily Analytics by Stop Table 
 
 ```{r stop_daily_table, include=TRUE, message=FALSE}
-table_2 <- full_stop_data$daily_stop_analytics[[1]] %>% select(-c(avg_speed, stop_lat, stop_lon))
+table_2 <- full_stop_data$daily_stop_analytics[[1]] %>% ungroup() %>% select(-c(avg_speed, stop_lat, stop_lon))
  
 # kable(table_2, booktabs = TRUE, align = 'c',format.args = list(big.mark = ","),digits=1) %>%
 #   kable_styling(latex_options = "scale_down")  %>%
@@ -430,6 +429,7 @@ table_2 <- full_stop_data$daily_stop_analytics[[1]] %>% select(-c(avg_speed, sto
 reactable(table_2,
     filterable = TRUE,
     resizable = TRUE,
+    bordered = TRUE,highlight = TRUE,
     columns = list(
     # route_id = colDef(
     #   sticky = "left",
@@ -451,13 +451,18 @@ reactable(table_2,
     # ),
       #total_trips = colDef(aggregate = "max"),
       #avg_headway = colDef(aggregate = "mean", format = colFormat(digits = 1)),
-      total_ons = colDef(aggregate = "sum", format = colFormat(digits = 0)),
-      total_offs = colDef(aggregate = "sum", format = colFormat(digits = 0)),
-      avg_load = colDef(format = colFormat(digits = 0)),
-      avg_dwell_observed = colDef(format = colFormat(digits = 2)),
-      avg_dwell_estimated = colDef(format = colFormat(digits = 2)),
-      avg_dwell_hybrid = colDef(format = colFormat(digits = 2)),
-      avg_dwell_per_pass_hybrid = colDef(format = colFormat(digits = 2))
+      
+      routes=colDef(name="Route",width=100),
+      stop_id=colDef(name="Stop ID"),stop_name=colDef(name="Stop Name"),
+      total_trips = colDef(name="Total Trips"),
+      avg_headway = colDef(name="Average Headway"),
+      total_ons = colDef(name= "Total Ons",aggregate = "sum", format = colFormat(digits = 0)),
+      total_offs = colDef(name="Total Offs",aggregate = "sum", format = colFormat(digits = 0)),
+      avg_load = colDef(name="Average Load",format = colFormat(digits = 0)),
+      avg_dwell_observed = colDef(name="Avg Observed Dwell",format = colFormat(digits = 2)),
+      avg_dwell_estimated = colDef(name="Avg Estimated Dwell",format = colFormat(digits = 2)),
+      avg_dwell_hybrid = colDef(name="Avg Hybrid Dwell",format = colFormat(digits = 2)),
+      avg_dwell_per_pass_hybrid = colDef(name="Avg Hybrid Dwell per Passenger",format = colFormat(digits = 2))
     )
 )
 
@@ -476,6 +481,7 @@ reactable(
   groupBy = c("route_id", "direction_id"),
   pagination = FALSE, 
   resizable = TRUE,
+  highlight = TRUE,
   height = 500,
   columns = list(
     # route_id = colDef(
@@ -496,17 +502,20 @@ reactable(
     #   style = list(borderRight = "1px solid #eee"),
     #   headerStyle = list(borderRight = "1px solid #eee")
     # ),
-    total_trips = colDef(aggregate = "max"),
-    avg_headway = colDef(aggregate = "mean", format = colFormat(digits = 1)),
-    total_ons = colDef(aggregate = "sum", format = colFormat(digits = 1)),
-    total_offs = colDef(aggregate = "sum", format = colFormat(digits = 1)),
-    avg_load = colDef(aggregate = "mean", format = colFormat(digits = 1)),
-    avg_dwell_observed = colDef(aggregate = "mean", format = colFormat(digits = 1)),
-    avg_dwell_estimated = colDef(aggregate = "mean", format = colFormat(digits = 1)),
-    avg_dwell_hybrid = colDef(aggregate = "mean", format = colFormat(digits = 1)),
-    avg_dwell_per_pass_hybrid = colDef(aggregate = "mean", format = colFormat(digits = 1))
+    route_id=colDef(name="Route",width=100),direction_id=colDef(name="Direction",width=150),
+    stop_lat=colDef(name="Stop Latitude",width=100),stop_lon=colDef(name="Stop Longitude",width=100),
+    stop_id=colDef(name="Stop ID"),stop_name=colDef(name="Stop Name"),
+    total_trips = colDef(name="Total Trips",aggregate = "max"),
+    avg_headway = colDef(name="Average Headway",aggregate = "mean", format = colFormat(digits = 1)),
+    total_ons = colDef(name= "Total Ons",aggregate = "sum", format = colFormat(digits = 1)),
+    total_offs = colDef(name="Total Offs",aggregate = "sum", format = colFormat(digits = 1)),
+    avg_load = colDef(name="Average Load",aggregate = "mean", format = colFormat(digits = 1)),
+    avg_dwell_observed = colDef(name="Avg Observed Dwell",aggregate = "mean", format = colFormat(digits = 1)),
+    avg_dwell_estimated = colDef(name="Avg Estimated Dwell",aggregate = "mean", format = colFormat(digits = 1)),
+    avg_dwell_hybrid = colDef(name="Avg Hybrid Dwell",aggregate = "mean", format = colFormat(digits = 1)),
+    avg_dwell_per_pass_hybrid = colDef(name="Avg Hybrid Dwell per Passenger",aggregate = "mean", format = colFormat(digits = 1))
   ),
-  defaultColDef = colDef(minWidth = 150)
+  defaultColDef = colDef(minWidth = 120)
 )
 
 

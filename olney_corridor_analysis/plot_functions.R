@@ -234,8 +234,8 @@ plot_speed_by_route_dir <- function(hourly_route_direction_analytics, corridor_n
 plot_joyplot_runtimes <- function(trip_dat, route_num, direction = "Eastbound", pattern_list, corridor_name, min_dur, max_dur) {
   
   #full_df <- full_corridor_dat$dat[[1]]
-  min <- min_dur
-  max <- max_dur
+  min <- min_dur - 30
+  max <- max_dur + 30
   x <- trip_dat %>% ungroup() %>% 
     filter(direction_id == direction & route_id == route_num & pattern_id %in% pattern_list) %>%
     mutate(time_bin = (trip_begin %>% lubridate::as_datetime(format = "%H:%M:%S") %>% hour())) %>% 
