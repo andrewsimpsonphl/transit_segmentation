@@ -18,6 +18,12 @@ output: html_document
 - Clean up the corridor/subcorridor input process
 - Standardize & functionalize chart formatting 
 - Fully implement smarter stop ordering throughout code
+- Split Trips by hour into route/direction and show it as average frequency 
+- Add average line to hourly/speed chart
+- Create a runtimes by passenger boards/alights chart 
+- Create a ridership chart showings ons/offs
+- Add more subcorridor comparison charts 
+
 
 # Roadmap
 
